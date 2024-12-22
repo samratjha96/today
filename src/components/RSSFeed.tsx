@@ -108,9 +108,11 @@ export const RSSFeed = () => {
             <PaginationContent>
               <PaginationItem>
                 <PaginationPrevious 
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  className="text-[#33C3F0] hover:text-[#1EAEDB] cursor-pointer"
-                  disabled={currentPage === 1}
+                  onClick={() => currentPage > 1 && setCurrentPage(p => Math.max(1, p - 1))}
+                  className={cn(
+                    "text-[#33C3F0] hover:text-[#1EAEDB] cursor-pointer",
+                    currentPage === 1 && "pointer-events-none opacity-50"
+                  )}
                 />
               </PaginationItem>
               {Array.from({ length: totalPages }).map((_, i) => (
@@ -126,9 +128,11 @@ export const RSSFeed = () => {
               ))}
               <PaginationItem>
                 <PaginationNext
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  className="text-[#33C3F0] hover:text-[#1EAEDB] cursor-pointer"
-                  disabled={currentPage === totalPages}
+                  onClick={() => currentPage < totalPages && setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  className={cn(
+                    "text-[#33C3F0] hover:text-[#1EAEDB] cursor-pointer",
+                    currentPage === totalPages && "pointer-events-none opacity-50"
+                  )}
                 />
               </PaginationItem>
             </PaginationContent>

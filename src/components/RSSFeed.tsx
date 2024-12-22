@@ -1,4 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "./ui/pagination";
 
 interface RSSItem {
   source: string;
@@ -34,6 +36,8 @@ const mockRSSData: RSSItem[] = [
   }
 ];
 
+const ITEMS_PER_PAGE = 3;
+
 const fetchRSSData = async (): Promise<RSSItem[]> => {
   // Simulating API call
   return new Promise((resolve) => {
@@ -42,10 +46,11 @@ const fetchRSSData = async (): Promise<RSSItem[]> => {
 };
 
 export const RSSFeed = () => {
+  const [currentPage, setCurrentPage] = useState(1);
   const { data, isLoading, error } = useQuery({
     queryKey: ["rss"],
     queryFn: fetchRSSData,
-    refetchInterval: 300000, // Refetch every 5 minutes
+    refetchInterval: 300000,
   });
 
   if (isLoading) {
@@ -64,13 +69,19 @@ export const RSSFeed = () => {
     );
   }
 
+  const totalPages = Math.ceil((data?.length || 0) / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedData = data?.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
   return (
     <div className="border border-terminal-accent/20 rounded-lg overflow-hidden animate-fadeIn">
       <div className="bg-terminal-secondary px-6 py-3">
-        <h2 className="text-terminal-text font-mono text-sm">Top Tech and Finance News (from RSS):</h2>
+        <h2 className="text-[#33C3F0] font-mono text-sm flex items-center gap-2">
+          💻 💰 Top Tech and Finance News (from RSS):
+        </h2>
       </div>
       <div className="divide-y divide-terminal-accent/20">
-        {data?.map((item, index) => (
+        {paginatedData?.map((item, index) => (
           <div
             key={index}
             className="px-6 py-4 bg-terminal-bg/50 hover:bg-terminal-secondary/50 transition-colors"
@@ -83,7 +94,7 @@ export const RSSFeed = () => {
                 href={item.link}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-terminal-text font-mono text-sm hover:text-terminal-accent transition-colors line-clamp-2"
+                className="text-[#33C3F0] font-mono text-sm hover:text-[#1EAEDB] transition-colors line-clamp-2"
               >
                 {item.title}
               </a>
@@ -91,6 +102,39 @@ export const RSSFeed = () => {
           </div>
         ))}
       </div>
+      {totalPages > 1 && (
+        <div className="bg-terminal-secondary px-6 py-3">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious 
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  className="text-[#33C3F0] hover:text-[#1EAEDB] cursor-pointer"
+                  disabled={currentPage === 1}
+                />
+              </PaginationItem>
+              {Array.from({ length: totalPages }).map((_, i) => (
+                <PaginationItem key={i}>
+                  <PaginationLink
+                    onClick={() => setCurrentPage(i + 1)}
+                    isActive={currentPage === i + 1}
+                    className="text-[#33C3F0] hover:text-[#1EAEDB] cursor-pointer"
+                  >
+                    {i + 1}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  className="text-[#33C3F0] hover:text-[#1EAEDB] cursor-pointer"
+                  disabled={currentPage === totalPages}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
     </div>
   );
 };

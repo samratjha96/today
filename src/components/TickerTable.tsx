@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
+import { useState } from "react";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "./ui/pagination";
 
 interface TickerData {
   ticker: string;
@@ -18,6 +20,8 @@ const mockTickerData: TickerData[] = [
   { ticker: "VT", todaysPrice: 118.11, dayChange: 0.81, weekChange: -2.46, yearChange: 18.05 },
 ];
 
+const ITEMS_PER_PAGE = 4;
+
 const fetchTickerData = async (): Promise<TickerData[]> => {
   // Simulating API call
   return new Promise((resolve) => {
@@ -26,10 +30,11 @@ const fetchTickerData = async (): Promise<TickerData[]> => {
 };
 
 export const TickerTable = () => {
+  const [currentPage, setCurrentPage] = useState(1);
   const { data, isLoading, error } = useQuery({
     queryKey: ["tickers"],
     queryFn: fetchTickerData,
-    refetchInterval: 30000, // Refetch every 30 seconds
+    refetchInterval: 30000,
   });
 
   if (isLoading) {
@@ -48,6 +53,10 @@ export const TickerTable = () => {
     );
   }
 
+  const totalPages = Math.ceil((data?.length || 0) / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedData = data?.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
   return (
     <div className="overflow-x-auto animate-fadeIn">
       <div className="inline-block min-w-full align-middle">
@@ -63,7 +72,7 @@ export const TickerTable = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-terminal-accent/20 bg-terminal-bg/50">
-              {data?.map((ticker) => (
+              {paginatedData?.map((ticker) => (
                 <tr key={ticker.ticker} className="hover:bg-terminal-secondary/50 transition-colors">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-terminal-text">
                     {ticker.ticker}
@@ -93,6 +102,39 @@ export const TickerTable = () => {
               ))}
             </tbody>
           </table>
+          {totalPages > 1 && (
+            <div className="bg-terminal-secondary px-6 py-3">
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious 
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      className="text-terminal-text hover:text-terminal-accent cursor-pointer"
+                      disabled={currentPage === 1}
+                    />
+                  </PaginationItem>
+                  {Array.from({ length: totalPages }).map((_, i) => (
+                    <PaginationItem key={i}>
+                      <PaginationLink
+                        onClick={() => setCurrentPage(i + 1)}
+                        isActive={currentPage === i + 1}
+                        className="text-terminal-text hover:text-terminal-accent cursor-pointer"
+                      >
+                        {i + 1}
+                      </PaginationLink>
+                    </PaginationItem>
+                  ))}
+                  <PaginationItem>
+                    <PaginationNext
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      className="text-terminal-text hover:text-terminal-accent cursor-pointer"
+                      disabled={currentPage === totalPages}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
+          )}
         </div>
       </div>
     </div>

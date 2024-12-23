@@ -5,18 +5,24 @@ import pandas as pd
 import feedparser
 from bs4 import BeautifulSoup
 from fastapi.middleware.cors import CORSMiddleware
+import os
 
 app = FastAPI()
 
-# Allow all origins temporarily for testing
-origins = ["*"]
+# Get allowed origins from environment variable or use default
+ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "today.techbrohomelab.xyz").split(",")
+origins = [
+    f"https://{host.strip()}" for host in ALLOWED_HOSTS
+]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=3600,  # Cache preflight requests for 1 hour
 )
 
 class TickerData(BaseModel):

@@ -1,18 +1,6 @@
 version: '3.8'
 
 services:
-  nginx:
-    image: nginx:alpine
-    container_name: today-nginx
-    volumes:
-      - ./nginx-host.conf:/etc/nginx/conf.d/default.conf
-    ports:
-      - "80:80"  # Expose to Cloudflare Tunnel
-    depends_on:
-      - frontend
-      - backend
-    restart: unless-stopped
-
   backend:
     build:
       context: ./backend
@@ -22,12 +10,16 @@ services:
       - "8020"  # Only expose to internal network
     environment:
       - TZ=UTC
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-today.techbrohomelab.xyz}  # Add your domain here
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8020/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
+    networks:
+      - default
+      - shared-web
     restart: unless-stopped
 
   frontend:
@@ -43,9 +35,15 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    networks:
+      - default
+      - shared-web
     restart: unless-stopped
 
 networks:
   default:
     name: today-network
     driver: bridge
+  shared-web:
+    external: true
+    name: shared-web

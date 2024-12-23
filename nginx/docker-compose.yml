@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: shared-nginx
+    volumes:
+      - ./conf.d:/etc/nginx/conf.d
+    ports:
+      - "80:80"
+    networks:
+      - shared-web
+    restart: unless-stopped
+
+networks:
+  shared-web:
+    name: shared-web
+    driver: bridge

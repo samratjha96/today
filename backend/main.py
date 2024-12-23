@@ -8,13 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
-origins = [
-    "http://localhost:8019",
-    "http://127.0.0.1:8019",
-    "http://localhost",  # Docker frontend service
-    "http://localhost:80",  # Docker frontend service alternative
-    "http://frontend",  # Docker service name
-]
+# Allow all origins temporarily for testing
+origins = ["*"]
 
 app.add_middleware(
     CORSMiddleware,

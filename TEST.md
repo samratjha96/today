@@ -1,6 +1,13 @@
 # Quick Test Guide
 
-Run these commands in order to test the setup:
+## Configuration Files
+
+There are three nginx configuration files:
+1. `nginx.conf` - Used inside the frontend container
+2. `nginx-host-main.conf` - Main configuration for the host machine
+3. `nginx-host.conf` - Virtual host configuration for the host machine
+
+## Testing Steps
 
 1. Start the containers:
 ```bash
@@ -11,12 +18,17 @@ docker-compose up -d
 docker ps
 ```
 
-2. Set up nginx:
+2. Set up host nginx:
 ```bash
-# Copy nginx configs
-sudo cp nginx.conf /etc/nginx/nginx.conf
+# Copy main nginx config
+sudo cp nginx-host-main.conf /etc/nginx/nginx.conf
+
+# Copy virtual host config
 sudo cp nginx-host.conf /etc/nginx/sites-available/default
 sudo ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
+
+# Create cache directory if it doesn't exist
+sudo mkdir -p /var/cache/nginx
 
 # Test config
 sudo nginx -t
@@ -53,23 +65,34 @@ http://YOUR_EC2_PUBLIC_IP
 ```
 
 The app should now work in your browser because:
-- nginx is routing all traffic on port 80 to the frontend
+- Host nginx is routing all traffic on port 80 to the frontend container
+- Frontend container's nginx is serving the Vite app
 - Backend CORS is temporarily allowing all origins
-- Frontend container is serving the Vite app
 - Backend container is serving the API
 
 5. Troubleshooting:
+
+Host nginx issues:
 ```bash
-# Check nginx logs
+# Check host nginx logs
 sudo tail -f /var/log/nginx/error.log
 sudo tail -f /var/log/nginx/access.log
 
+# Check host nginx config
+sudo nginx -t
+
+# Check host nginx status
+sudo systemctl status nginx
+```
+
+Container issues:
+```bash
 # Check container logs
 docker logs today-frontend
 docker logs today-backend
 
-# Check nginx status
-sudo systemctl status nginx
+# Check container nginx config
+docker exec today-frontend nginx -t
 
 # Check listening ports
 sudo netstat -tulpn | grep '80\|8019\|8020'
@@ -84,15 +107,15 @@ curl http://localhost:8020/news
 # Stop and remove containers
 docker-compose down
 
-# Remove nginx configs
+# Remove host nginx configs
 sudo rm /etc/nginx/nginx.conf
 sudo rm /etc/nginx/sites-available/default
 sudo rm /etc/nginx/sites-enabled/default
 
-# Restore default nginx config
+# Restore default host nginx config
 sudo cp /etc/nginx/nginx.conf.backup /etc/nginx/nginx.conf
 
-# Stop nginx
+# Stop host nginx
 sudo systemctl stop nginx
 
 # Start fresh
@@ -113,3 +136,19 @@ origins = [
     "http://today.samratjha.com",
     "https://today.samratjha.com"
 ]
+```
+
+## Understanding the Nginx Setup
+
+1. Host Nginx:
+   - Listens on port 80
+   - Routes traffic to frontend container (8019)
+   - Handles domain routing
+   - Main config: nginx-host-main.conf
+   - Virtual hosts: nginx-host.conf
+
+2. Frontend Container Nginx:
+   - Serves the built Vite app
+   - Handles SPA routing
+   - Manages static assets
+   - Config: nginx.conf

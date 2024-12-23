@@ -1,48 +1,65 @@
-today.techbrohomelab.xyz {
-	# Security headers
-	header {
-		X-Frame-Options "SAMEORIGIN"
-		X-XSS-Protection "1; mode=block"
-		X-Content-Type-Options "nosniff"
-		Referrer-Policy "strict-origin-when-cross-origin"
-		Strict-Transport-Security "max-age=31536000; includeSubDomains"
-	}
-
-	# Trust Cloudflare headers
-	trusted_proxies private_ranges
-
-	# Handle frontend requests
-	handle {
-		reverse_proxy today-frontend:80 {
-			health_uri /
-			health_interval 30s
-			health_timeout 10s
-			health_status 200
-			
-			# Timeouts
-			timeout 10s
-			
-			# Load balancing
-			lb_try_duration 5s
-			lb_try_interval 250ms
+{
+	# Global options
+	admin off
+	
+	# Global security settings
+	servers {
+		protocols h2c h2 h1
+		timeouts {
+			read_body 10s
+			read_header 10s
+			write 30s
+			idle 2m
 		}
 	}
+}
 
-	# Handle backend requests
-	handle /api/* {
-		uri strip_prefix /api
-		reverse_proxy today-backend:8020 {
-			health_uri /health
-			health_interval 30s
-			health_timeout 10s
-			health_status 200
+:80 {
+	@today host today.techbrohomelab.xyz
+	handle @today {
+		# Security headers
+		header {
+			# XSS Protection
+			X-Frame-Options "SAMEORIGIN"
+			X-XSS-Protection "1; mode=block"
+			X-Content-Type-Options "nosniff"
 			
-			# Timeouts
-			timeout 10s
+			# Content Security Policy
+			Content-Security-Policy "default-src 'self' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; font-src 'self' https:; connect-src 'self' https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
 			
-			# Load balancing
-			lb_try_duration 5s
-			lb_try_interval 250ms
+			# Additional security headers
+			Referrer-Policy "strict-origin-when-cross-origin"
+			Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+			Permissions-Policy "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
+			
+			# Remove server information
+			-Server
+			-X-Powered-By
+		}
+		
+		# API handling
+		@api path /api/*
+		handle @api {
+			reverse_proxy today-backend:8020 {
+				header_up X-Real-IP {remote_host}
+				header_up X-Forwarded-For {remote_host}
+				header_up X-Forwarded-Proto {scheme}
+				
+				transport http {
+					read_buffer 4kb
+					write_buffer 4kb
+				}
+			}
+			uri strip_prefix /api
+		}
+		
+		# Frontend handling
+		handle {
+			reverse_proxy today-frontend:80 {
+				header_up X-Real-IP {remote_host}
+				header_up X-Forwarded-For {remote_host}
+				header_up X-Forwarded-Proto {scheme}
+			}
 		}
 	}
 

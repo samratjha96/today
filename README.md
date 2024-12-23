@@ -4,43 +4,49 @@ A real-time dashboard showing market data and tech news.
 
 ## Infrastructure Setup
 
-### 1. Shared Nginx Setup
+### 1. Shared Caddy Setup
 
-The infrastructure uses a shared nginx container that routes traffic to multiple services based on domain names.
+The infrastructure uses a shared Caddy v2 container that routes traffic to multiple services based on domain names.
 
-1. Create the shared nginx directory structure:
+1. Create the Caddy directory structure:
 ```bash
-mkdir -p nginx/conf.d nginx/html
+mkdir -p caddy/error
 ```
 
-2. Start the shared nginx service:
+2. Start the shared Caddy service:
 ```bash
-cd nginx
+cd caddy
 docker-compose up -d
 ```
 
-The shared nginx service configuration (`nginx/docker-compose.yml`):
+The shared Caddy service configuration (`caddy/docker-compose.yml`):
 ```yaml
 version: '3.8'
 
 services:
-  nginx:
-    image: nginx:alpine
-    container_name: shared-nginx
+  caddy:
+    image: caddy:2-alpine
+    container_name: shared-caddy
     volumes:
-      - ./conf.d:/etc/nginx/conf.d
-      - ./html:/usr/share/nginx/html
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./error:/usr/share/caddy/error:ro
+      - caddy_data:/data
+      - caddy_config:/config
     ports:
       - "80:80"
     networks:
       - shared-web
     healthcheck:
-      test: ["CMD", "nginx", "-t"]
+      test: ["CMD", "caddy", "validate", "--config", "/etc/caddy/Caddyfile"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
     restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:
 
 networks:
   shared-web:
@@ -107,52 +113,65 @@ VITE_API_MODE=real
 ALLOWED_HOSTS=today.techbrohomelab.xyz
 ```
 
-### 2. Nginx Configuration
+### 2. Caddy Configuration
 
-The nginx configuration includes error handling and resilience features to prevent service disruptions:
+The Caddy configuration includes security headers and domain-based routing:
 
-```nginx
-# Upstream definitions with failure handling
-upstream today-frontend-upstream {
-    server today-frontend:80 max_fails=3 fail_timeout=10s;
-    server 127.0.0.1:1 backup;  # Fallback for graceful failure
-}
-
-upstream today-backend-upstream {
-    server today-backend:8020 max_fails=3 fail_timeout=10s;
-    server 127.0.0.1:1 backup;  # Fallback for graceful failure
-}
-
-server {
-    listen 80;
-    server_name today.techbrohomelab.xyz;
+```caddy
+{
+    # Global options
+    admin off
     
-    # Custom error handling
-    error_page 502 503 504 /error.html;
-    
-    location / {
-        proxy_pass http://today-frontend-upstream;
-        # Timeouts and error handling
-        proxy_connect_timeout 5s;
-        proxy_send_timeout 10s;
-        proxy_read_timeout 10s;
-        proxy_next_upstream error timeout http_502 http_503 http_504;
-        proxy_intercept_errors on;
+    servers {
+        protocols h2c h2 h1
+        timeouts {
+            read_body 10s
+            read_header 10s
+            write 30s
+            idle 2m
+        }
     }
-    
-    location /api/ {
-        proxy_pass http://today-backend-upstream/;
-        # Similar timeout and error handling settings
+}
+
+:80 {
+    @today host today.techbrohomelab.xyz
+    handle @today {
+        # Security headers
+        header {
+            X-Frame-Options "SAMEORIGIN"
+            X-XSS-Protection "1; mode=block"
+            X-Content-Type-Options "nosniff"
+            Content-Security-Policy "default-src 'self' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; font-src 'self' https:; connect-src 'self' https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+            Referrer-Policy "strict-origin-when-cross-origin"
+            Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+            Permissions-Policy "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
+        }
+        
+        handle /api/* {
+            reverse_proxy today-backend:8020
+            uri strip_prefix /api
+        }
+        
+        handle {
+            reverse_proxy today-frontend:80
+        }
+    }
+
+    handle_errors {
+        rewrite * /error.html
+        file_server {
+            root /usr/share/caddy/error
+        }
     }
 }
 ```
 
-Key resilience features:
-- Upstream failure detection (`max_fails=3 fail_timeout=10s`)
-- Graceful degradation with backup servers
+Key features:
+- Domain-based routing with matchers
+- Comprehensive security headers
+- Clean API path handling
 - Custom error pages
-- Connection timeouts
-- Automatic retry on failures
+- HTTP/2 support
 
 ### 3. App Services Configuration
 
@@ -209,7 +228,42 @@ networks:
     name: shared-web
 ```
 
-### 4. Deployment
+### 4. Performance Optimizations
+
+#### Frontend Caching Strategy
+
+The app uses React Query for efficient data fetching and caching:
+
+1. RSS News Data (slower changing):
+```typescript
+{
+  refetchInterval: 300000,  // Fetch new data every 5 minutes
+  staleTime: 240000,       // Consider data fresh for 4 minutes
+  gcTime: 600000,         // Keep in cache for 10 minutes
+  refetchOnWindowFocus: false,
+  refetchOnReconnect: true
+}
+```
+
+2. Ticker Data (faster changing):
+```typescript
+{
+  refetchInterval: 30000,  // Fetch new data every 30 seconds
+  staleTime: 25000,       // Consider data fresh for 25 seconds
+  gcTime: 120000,        // Keep in cache for 2 minutes
+  refetchOnWindowFocus: false,
+  refetchOnReconnect: true
+}
+```
+
+Benefits:
+- Reduced API calls
+- Instant data display from cache
+- Background updates without UI flicker
+- Automatic retry with exponential backoff
+- Optimized network usage
+
+### 5. Deployment
 
 1. Start the app services:
 ```bash
@@ -225,18 +279,11 @@ docker-compose up -d
 
 To add a new service to this infrastructure:
 
-1. Create a new nginx configuration in `nginx/conf.d/`:
-```nginx
-# Example for a new service
-upstream newapp-frontend-upstream {
-    server newapp-frontend:80 max_fails=3 fail_timeout=10s;
-    server 127.0.0.1:1 backup;
-}
-
-server {
-    listen 80;
-    server_name newapp.techbrohomelab.xyz;
-    # ... rest of the configuration similar to today.conf
+1. Add a new host matcher in the Caddyfile:
+```caddy
+@newapp host newapp.techbrohomelab.xyz
+handle @newapp {
+    reverse_proxy newapp-frontend:80
 }
 ```
 
@@ -253,8 +300,8 @@ server {
 
 4. Deploy:
 ```bash
-# Reload nginx to pick up new configuration
-cd nginx
+# Reload Caddy to pick up new configuration
+cd caddy
 docker-compose restart
 
 # Start your new service
@@ -264,9 +311,9 @@ docker-compose up -d
 
 ## Troubleshooting
 
-1. Check nginx logs:
+1. Check Caddy logs:
 ```bash
-cd nginx
+cd caddy
 docker-compose logs -f
 ```
 
@@ -280,16 +327,16 @@ cloudflared tunnel info <YOUR-TUNNEL-NAME>
 docker network inspect shared-web
 ```
 
-4. Verify nginx configuration:
+4. Verify Caddy configuration:
 ```bash
-cd nginx
-docker-compose exec nginx nginx -t
+cd caddy
+docker-compose exec caddy caddy validate --config /etc/caddy/Caddyfile
 ```
 
 5. Service Unavailability:
-- If a service is down, nginx will display a custom error page
+- If a service is down, Caddy will display a custom error page
 - Check the specific service logs: `docker logs <container-name>`
-- The shared nginx will continue running even if individual services are down
+- The shared Caddy will continue running even if individual services are down
 - Other services will remain unaffected by one service's failure
 
 ## Error Handling
@@ -300,17 +347,24 @@ The setup includes several layers of error handling:
 - Health checks for both frontend and backend
 - Automatic container restarts
 - Graceful shutdown handling
+- React Query retry mechanism
 
-2. Nginx Level:
+2. Caddy Level:
 - Custom error pages
-- Upstream failure detection
-- Connection timeouts
-- Automatic request retries
-- Graceful degradation
+- Security headers
+- HTTP/2 support
+- Zero-downtime config reloads
+- Automatic HTTPS (when not using Cloudflare)
 
 3. Network Level:
 - Isolated service networks
 - Shared proxy network
 - Cloudflare SSL/TLS protection
 
-This multi-layered approach ensures high availability and graceful degradation when issues occur.
+4. Application Level:
+- Data caching with React Query
+- Exponential backoff for failed requests
+- Graceful degradation with cached data
+- Request timeout handling
+
+This multi-layered approach ensures high availability, optimal performance, and graceful degradation when issues occur.

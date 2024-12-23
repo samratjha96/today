@@ -1,5 +1,5 @@
-import { BACKEND_URL } from "@/lib/constants";
 import { useQuery } from "@tanstack/react-query";
+import { BACKEND_URL } from "../lib/constants";
 
 export interface TickerData {
   ticker: string;
@@ -88,7 +88,13 @@ export const useTickerData = () => {
   return useQuery({
     queryKey: ["tickers"],
     queryFn: fetchTickerData,
-    refetchInterval: 30000,
+    refetchInterval: 30000, // 30 seconds
+    staleTime: 25000, // 25 seconds - data considered fresh for 25 seconds
+    gcTime: 120000, // 2 minutes - keep unused data in cache for 2 minutes
+    retry: 2, // Retry failed requests twice
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
+    refetchOnWindowFocus: false, // Don't refetch when window regains focus
+    refetchOnReconnect: true, // Refetch on reconnection
   });
 };
 

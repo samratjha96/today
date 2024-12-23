@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { BACKEND_URL } from "@/lib/constants";
+import { BACKEND_URL } from "../lib/constants";
 
 export interface RSSItem {
   source: string;
@@ -28,5 +28,11 @@ export const useRSSData = () => {
     queryKey: ["rss"],
     queryFn: fetchRSSData,
     refetchInterval: 300000, // 5 minutes
+    staleTime: 240000, // 4 minutes - data considered fresh for 4 minutes
+    gcTime: 600000, // 10 minutes - keep unused data in cache for 10 minutes
+    retry: 2, // Retry failed requests twice
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
+    refetchOnWindowFocus: false, // Don't refetch when window regains focus
+    refetchOnReconnect: true, // Refetch on reconnection
   });
 };

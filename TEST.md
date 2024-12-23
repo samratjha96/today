@@ -2,10 +2,13 @@
 
 ## Configuration Files
 
-There are three nginx configuration files:
-1. `nginx.conf` - Used inside the frontend container
-2. `nginx-host-main.conf` - Main configuration for the host machine
-3. `nginx-host.conf` - Virtual host configuration for the host machine
+1. Container Nginx Files:
+   - `nginx.conf` - Base configuration for the frontend container
+   - `default.conf` - Server block configuration for the frontend container
+
+2. Host Nginx Files:
+   - `nginx-host-main.conf` - Main configuration for the host machine
+   - `nginx-host.conf` - Virtual host configuration for the host machine
 
 ## Testing Steps
 
@@ -16,6 +19,9 @@ docker-compose up -d
 
 # Verify containers are running
 docker ps
+
+# Check frontend container logs
+docker logs today-frontend
 ```
 
 2. Set up host nginx:
@@ -65,12 +71,28 @@ http://YOUR_EC2_PUBLIC_IP
 ```
 
 The app should now work in your browser because:
-- Host nginx is routing all traffic on port 80 to the frontend container
+- Host nginx is routing all traffic on port 80 to the frontend container (8019)
 - Frontend container's nginx is serving the Vite app
 - Backend CORS is temporarily allowing all origins
-- Backend container is serving the API
+- Backend container is serving the API (8020)
 
 5. Troubleshooting:
+
+Container nginx issues:
+```bash
+# Check frontend container logs
+docker logs today-frontend
+
+# Inspect frontend container
+docker exec -it today-frontend sh
+
+# Check nginx config inside container
+docker exec today-frontend nginx -t
+
+# Check nginx config files inside container
+docker exec today-frontend cat /etc/nginx/nginx.conf
+docker exec today-frontend cat /etc/nginx/conf.d/default.conf
+```
 
 Host nginx issues:
 ```bash
@@ -85,14 +107,10 @@ sudo nginx -t
 sudo systemctl status nginx
 ```
 
-Container issues:
+Other checks:
 ```bash
 # Check container logs
-docker logs today-frontend
 docker logs today-backend
-
-# Check container nginx config
-docker exec today-frontend nginx -t
 
 # Check listening ports
 sudo netstat -tulpn | grep '80\|8019\|8020'
@@ -140,15 +158,23 @@ origins = [
 
 ## Understanding the Nginx Setup
 
-1. Host Nginx:
-   - Listens on port 80
-   - Routes traffic to frontend container (8019)
-   - Handles domain routing
-   - Main config: nginx-host-main.conf
-   - Virtual hosts: nginx-host.conf
+1. Container Nginx:
+   - Base config (nginx.conf):
+     * Sets up basic settings
+     * Includes mime types
+     * Configures logging
+     * Enables gzip
+   - Server block (default.conf):
+     * Serves the built Vite app
+     * Handles SPA routing
+     * Manages static assets
 
-2. Frontend Container Nginx:
-   - Serves the built Vite app
-   - Handles SPA routing
-   - Manages static assets
-   - Config: nginx.conf
+2. Host Nginx:
+   - Main config (nginx-host-main.conf):
+     * System-wide settings
+     * Worker processes
+     * Global security
+   - Virtual hosts (nginx-host.conf):
+     * Domain routing
+     * Proxy settings
+     * SSL configuration (when added)

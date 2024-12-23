@@ -23,6 +23,11 @@ const Index = () => {
           </section>
 
           <section>
+            <div className="mb-4">
+              <h2 className="font-mono text-sm text-terminal-text/60 flex items-center gap-2">
+                💻 💰 Top Tech and Finance News
+              </h2>
+            </div>
             <RSSFeed />
           </section>
         </div>

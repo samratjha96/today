@@ -1,69 +1,186 @@
-# Welcome to your Lovable project
+# Today Dashboard
 
-## Project info
+A real-time dashboard showing market data and tech news.
 
-**URL**: https://lovable.dev/projects/199bd9b4-3f1b-454f-8247-1d858db91d90
+## Host Machine Setup (Ubuntu EC2)
 
-## How can I edit this code?
+### Install and Configure Nginx
 
-There are several ways of editing your application.
+1. Update system and install nginx:
+```bash
+# Update package list
+sudo apt update
 
-**Use Lovable**
+# Install nginx
+sudo apt install nginx -y
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/199bd9b4-3f1b-454f-8247-1d858db91d90) and start prompting.
+# Start nginx and enable it to start on boot
+sudo systemctl start nginx
+sudo systemctl enable nginx
 
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+# Check status
+sudo systemctl status nginx
 ```
 
-**Edit a file directly in GitHub**
+2. Set up nginx configuration:
+```bash
+# Create cache directory
+sudo mkdir -p /var/cache/nginx
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+# Backup default configuration
+sudo mv /etc/nginx/nginx.conf /etc/nginx/nginx.conf.backup
 
-**Use GitHub Codespaces**
+# Copy our main configuration
+sudo cp nginx.conf /etc/nginx/nginx.conf
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+# Remove default site configuration
+sudo rm /etc/nginx/sites-enabled/default
 
-## What technologies are used for this project?
+# Copy our site configuration
+sudo cp nginx-host.conf /etc/nginx/sites-available/samratjha.com
+sudo ln -s /etc/nginx/sites-available/samratjha.com /etc/nginx/sites-enabled/
 
-This project is built with .
+# Test configuration
+sudo nginx -t
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+# If test passes, reload nginx
+sudo systemctl reload nginx
+```
 
-## How can I deploy this project?
+3. Set up logging:
+```bash
+# Create log directory if it doesn't exist
+sudo mkdir -p /var/log/nginx
 
-Simply open [Lovable](https://lovable.dev/projects/199bd9b4-3f1b-454f-8247-1d858db91d90) and click on Share -> Publish.
+# Set proper permissions
+sudo chown -R www-data:adm /var/log/nginx
+```
 
-## I want to use a custom domain - is that possible?
+4. Configure firewall:
+```bash
+# Allow HTTP traffic
+sudo ufw allow 80/tcp
 
-We don't support custom domains (yet). If you want to deploy your project under your own domain then we recommend using Netlify. Visit our docs for more details: [Custom domains](https://docs.lovable.dev/tips-tricks/custom-domain/)
+# Allow HTTPS traffic (if using SSL)
+sudo ufw allow 443/tcp
+
+# Enable firewall if not already enabled
+sudo ufw enable
+```
+
+5. (Optional) Set up SSL with Certbot:
+```bash
+# Install Certbot
+sudo apt install certbot python3-certbot-nginx -y
+
+# Get SSL certificate
+sudo certbot --nginx -d today.samratjha.com
+
+# Enable auto-renewal
+sudo systemctl enable certbot.timer
+sudo systemctl start certbot.timer
+```
+
+### Nginx Configuration Details
+
+#### Main Configuration (nginx.conf)
+
+The main nginx configuration file includes optimized settings for performance and security:
+
+1. Worker Processes:
+```nginx
+worker_processes auto;  # Automatically sets worker count based on CPU cores
+```
+- For high-traffic sites, you might want to set this manually to CPU core count minus one
+
+2. Event Settings:
+```nginx
+events {
+    worker_connections 1024;  # Maximum connections per worker
+    multi_accept on;         # Accept multiple connections per event
+    use epoll;              # Efficient event processing method
+}
+```
+- Increase worker_connections for high-traffic sites
+- Default 1024 is good for most cases
+
+3. HTTP Settings:
+```nginx
+http {
+    sendfile on;           # Efficient file sending
+    tcp_nopush on;        # Optimize packet sending
+    tcp_nodelay on;       # Reduce latency
+    keepalive_timeout 65; # Keep connections alive
+}
+```
+
+4. SSL Configuration:
+```nginx
+ssl_protocols TLSv1.2 TLSv1.3;              # Modern SSL protocols
+ssl_prefer_server_ciphers on;               # Prefer server ciphers
+ssl_session_cache shared:SSL:10m;           # SSL session cache
+```
+
+5. Gzip Compression:
+```nginx
+gzip on;
+gzip_types text/plain text/css application/json application/javascript;
+```
+- Reduces bandwidth usage
+- Improves load times
+
+6. Rate Limiting:
+```nginx
+limit_req_zone $binary_remote_addr zone=one:10m rate=10r/s;
+```
+- Protects against DDoS attacks
+- Adjust rate based on your needs
+
+### Performance Tuning
+
+1. For high-traffic sites:
+```nginx
+worker_processes auto;
+worker_rlimit_nofile 20000;
+events {
+    worker_connections 4096;
+    multi_accept on;
+}
+```
+
+2. For large file transfers:
+```nginx
+client_max_body_size 100M;
+client_body_buffer_size 128k;
+```
+
+3. For better caching:
+```nginx
+open_file_cache max=1000 inactive=20s;
+open_file_cache_valid 30s;
+open_file_cache_min_uses 2;
+open_file_cache_errors on;
+```
+
+### Security Best Practices
+
+1. Hide nginx version:
+```nginx
+server_tokens off;
+```
+
+2. Secure headers:
+```nginx
+add_header X-Frame-Options "SAMEORIGIN";
+add_header X-XSS-Protection "1; mode=block";
+add_header X-Content-Type-Options "nosniff";
+```
+
+3. SSL configuration:
+```nginx
+ssl_protocols TLSv1.2 TLSv1.3;
+ssl_prefer_server_ciphers on;
+ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256;
+```
+
+[Rest of the existing README content remains the same...]

@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: today-backend
+    ports:
+      - "8020:8020"
+    environment:
+      - TZ=UTC
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8020/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: today-frontend
+    ports:
+      - "127.0.0.1:8019:80"  # Only expose to localhost
+    environment:
+      # Use backend service name for internal Docker network communication
+      - VITE_BACKEND_URL=http://backend:8020
+      # API_MODE can be set to "mock" to use mock data instead of real API calls
+      - VITE_API_MODE=${VITE_API_MODE:-real}
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+networks:
+  default:
+    name: today-network
+    driver: bridge

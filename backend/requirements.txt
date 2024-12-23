@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+yfinance
+pandas
+feedparser
+beautifulsoup4
+pydantic

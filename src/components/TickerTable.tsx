@@ -1,41 +1,13 @@
-import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "./ui/pagination";
-
-interface TickerData {
-  ticker: string;
-  todaysPrice: number;
-  dayChange: number;
-  weekChange: number;
-  yearChange: number;
-}
-
-const mockTickerData: TickerData[] = [
-  { ticker: "SPY", todaysPrice: 591.15, dayChange: 1.20, weekChange: -1.83, yearChange: 26.66 },
-  { ticker: "VTI", todaysPrice: 293.28, dayChange: 1.14, weekChange: -2.22, yearChange: 25.49 },
-  { ticker: "VOO", todaysPrice: 545.04, dayChange: 1.13, weekChange: -1.90, yearChange: 26.75 },
-  { ticker: "SCHD", todaysPrice: 27.29, dayChange: 1.34, weekChange: -2.99, yearChange: 10.77 },
-  { ticker: "TAU", todaysPrice: 49.50, dayChange: 1.02, weekChange: -0.96, yearChange: 27.97 },
-  { ticker: "VT", todaysPrice: 118.11, dayChange: 0.81, weekChange: -2.46, yearChange: 18.05 },
-];
+import { useTickerData } from "@/hooks/use-ticker-data";
 
 const ITEMS_PER_PAGE = 5;
 
-const fetchTickerData = async (): Promise<TickerData[]> => {
-  // Simulating API call
-  return new Promise((resolve) => {
-    setTimeout(() => resolve(mockTickerData), 1000);
-  });
-};
-
 export const TickerTable = () => {
   const [currentPage, setCurrentPage] = useState(1);
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["tickers"],
-    queryFn: fetchTickerData,
-    refetchInterval: 30000,
-  });
+  const { data, isLoading, error } = useTickerData();
 
   if (isLoading) {
     return (
@@ -45,10 +17,16 @@ export const TickerTable = () => {
     );
   }
 
-  if (error) {
+  if (error || !data || data.length === 0) {
     return (
-      <div className="p-4 text-red-500 bg-terminal-secondary rounded-lg">
-        Error loading ticker data
+      <div className="p-8 text-center border border-terminal-accent/20 rounded-lg bg-terminal-bg/50">
+        <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-terminal-secondary mb-4">
+          <span className="text-xl">📊</span>
+        </div>
+        <h3 className="text-terminal-text font-mono text-lg mb-2">No Market Data Available</h3>
+        <p className="text-terminal-text/60 font-mono text-sm">
+          Unable to fetch market data at this time. Please try again later.
+        </p>
       </div>
     );
   }

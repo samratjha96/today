@@ -20,7 +20,7 @@ const mockTickerData: TickerData[] = [
   { ticker: "VT", todaysPrice: 118.11, dayChange: 0.81, weekChange: -2.46, yearChange: 18.05 },
 ];
 
-const ITEMS_PER_PAGE = 4;
+const ITEMS_PER_PAGE = 5;
 
 const fetchTickerData = async (): Promise<TickerData[]> => {
   // Simulating API call
@@ -120,7 +120,10 @@ export const TickerTable = () => {
                       <PaginationLink
                         onClick={() => setCurrentPage(i + 1)}
                         isActive={currentPage === i + 1}
-                        className="text-terminal-text hover:text-terminal-accent cursor-pointer"
+                        className={cn(
+                          "text-terminal-text hover:text-terminal-accent cursor-pointer",
+                          currentPage === i + 1 && "border border-terminal-accent bg-transparent"
+                        )}
                       >
                         {i + 1}
                       </PaginationLink>

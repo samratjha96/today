@@ -37,7 +37,7 @@ const mockRSSData: RSSItem[] = [
   }
 ];
 
-const ITEMS_PER_PAGE = 3;
+const ITEMS_PER_PAGE = 5;
 
 const fetchRSSData = async (): Promise<RSSItem[]> => {
   // Simulating API call
@@ -76,11 +76,6 @@ export const RSSFeed = () => {
 
   return (
     <div className="border border-terminal-accent/20 rounded-lg overflow-hidden animate-fadeIn">
-      <div className="bg-terminal-secondary px-6 py-3">
-        <h2 className="text-[#33C3F0] font-mono text-sm flex items-center gap-2">
-          💻 💰 Top Tech and Finance News (from RSS):
-        </h2>
-      </div>
       <div className="divide-y divide-terminal-accent/20">
         {paginatedData?.map((item, index) => (
           <div
@@ -121,7 +116,10 @@ export const RSSFeed = () => {
                   <PaginationLink
                     onClick={() => setCurrentPage(i + 1)}
                     isActive={currentPage === i + 1}
-                    className="text-[#33C3F0] hover:text-[#1EAEDB] cursor-pointer"
+                    className={cn(
+                      "text-[#33C3F0] hover:text-[#1EAEDB] cursor-pointer",
+                      currentPage === i + 1 && "border border-[#33C3F0] bg-transparent"
+                    )}
                   >
                     {i + 1}
                   </PaginationLink>

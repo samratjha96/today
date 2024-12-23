@@ -1,159 +1,316 @@
 # Today Dashboard
 
-[Previous content remains the same until the Error Handling section...]
+A real-time dashboard showing market data and tech news.
 
-## Error Handling and Resilience
+## Infrastructure Setup
 
-The setup includes several layers of error handling and resilience features:
+### 1. Shared Nginx Setup
 
-### 1. Dynamic DNS Resolution
+The infrastructure uses a shared nginx container that routes traffic to multiple services based on domain names.
 
-The nginx configuration uses Docker's internal DNS resolver to dynamically resolve service addresses:
+1. Create the shared nginx directory structure:
+```bash
+mkdir -p nginx/conf.d nginx/html
+```
+
+2. Start the shared nginx service:
+```bash
+cd nginx
+docker-compose up -d
+```
+
+The shared nginx service configuration (`nginx/docker-compose.yml`):
+```yaml
+version: '3.8'
+
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: shared-nginx
+    volumes:
+      - ./conf.d:/etc/nginx/conf.d
+      - ./html:/usr/share/nginx/html
+    ports:
+      - "80:80"
+    networks:
+      - shared-web
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+networks:
+  shared-web:
+    name: shared-web
+    driver: bridge
+```
+
+### 2. Cloudflare Tunnel Setup
+
+1. Install cloudflared:
+```bash
+# For Debian/Ubuntu
+curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+sudo dpkg -i cloudflared.deb
+```
+
+2. Authenticate with Cloudflare:
+```bash
+cloudflared tunnel login
+```
+
+3. Create a tunnel:
+```bash
+cloudflared tunnel create shared-services
+```
+
+4. Configure the tunnel in `~/.cloudflared/config.yml`:
+```yaml
+tunnel: <YOUR-TUNNEL-ID>
+credentials-file: /root/.cloudflared/<YOUR-TUNNEL-ID>.json
+
+ingress:
+  - hostname: today.techbrohomelab.xyz
+    service: http://localhost:80
+  - hostname: *.techbrohomelab.xyz
+    service: http://localhost:80
+  - service: http_status:404
+```
+
+5. Start the tunnel as a service:
+```bash
+sudo cloudflared service install
+sudo systemctl start cloudflared
+```
+
+## Today App Setup
+
+### 1. Environment Configuration
+
+Create a `.env` file from the template:
+```bash
+cp .env.example .env
+```
+
+Configure the following variables:
+```bash
+# Backend API URL (for frontend)
+VITE_BACKEND_URL=/api
+
+# API Mode (real/mock)
+VITE_API_MODE=real
+
+# Allowed hosts for CORS
+ALLOWED_HOSTS=today.techbrohomelab.xyz
+```
+
+### 2. Nginx Configuration
+
+The nginx configuration includes error handling and resilience features to prevent service disruptions:
 
 ```nginx
-# Enable Docker DNS resolver
-resolver 127.0.0.11 valid=30s ipv6=off;
+# Upstream definitions with failure handling
+upstream today-frontend-upstream {
+    server today-frontend:80 max_fails=3 fail_timeout=10s;
+    server 127.0.0.1:1 backup;  # Fallback for graceful failure
+}
 
-location / {
-    # Use variables to force DNS re-resolution
-    set $frontend_upstream "http://today-frontend";
-    proxy_pass $frontend_upstream:80;
-    # ... other configurations
+upstream today-backend-upstream {
+    server today-backend:8020 max_fails=3 fail_timeout=10s;
+    server 127.0.0.1:1 backup;  # Fallback for graceful failure
+}
+
+server {
+    listen 80;
+    server_name today.techbrohomelab.xyz;
+    
+    # Custom error handling
+    error_page 502 503 504 /error.html;
+    
+    location / {
+        proxy_pass http://today-frontend-upstream;
+        # Timeouts and error handling
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_next_upstream error timeout http_502 http_503 http_504;
+        proxy_intercept_errors on;
+    }
+    
+    location /api/ {
+        proxy_pass http://today-backend-upstream/;
+        # Similar timeout and error handling settings
+    }
 }
 ```
 
-This setup:
-- Allows services to come and go without nginx restart
-- Automatically detects when services become available
-- Handles container recreation seamlessly
-- Prevents nginx from failing when services are down
+Key resilience features:
+- Upstream failure detection (`max_fails=3 fail_timeout=10s`)
+- Graceful degradation with backup servers
+- Custom error pages
+- Connection timeouts
+- Automatic retry on failures
 
-### 2. Service Level Resilience
+### 3. App Services Configuration
 
-Each service container includes:
+The app's `docker-compose.yml`:
 ```yaml
-healthcheck:
-  test: ["CMD", "curl", "-f", "http://localhost:80/health"]
-  interval: 30s
-  timeout: 10s
-  retries: 3
-  start_period: 10s
-restart: unless-stopped
-```
+version: '3.8'
 
-Benefits:
-- Automatic container health monitoring
-- Self-healing through automatic restarts
-- Graceful startup and shutdown
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: today-backend
+    expose:
+      - "8020"
+    environment:
+      - TZ=UTC
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-today.techbrohomelab.xyz}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8020/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - default
+      - shared-web
+    restart: unless-stopped
 
-### 3. Nginx Error Handling
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: today-frontend
+    expose:
+      - "80"
+    environment:
+      - VITE_BACKEND_URL=/api
+      - VITE_API_MODE=${VITE_API_MODE:-real}
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - default
+      - shared-web
+    restart: unless-stopped
 
-Multiple layers of error protection:
-```nginx
-# Timeouts prevent hanging connections
-proxy_connect_timeout 5s;
-proxy_send_timeout 10s;
-proxy_read_timeout 10s;
-
-# Automatic retry on failures
-proxy_next_upstream error timeout http_502 http_503 http_504;
-proxy_next_upstream_timeout 0;
-proxy_next_upstream_tries 0;
-
-# Custom error pages
-error_page 502 503 504 /error.html;
-```
-
-This ensures:
-- Fast failure detection
-- Graceful error handling
-- User-friendly error pages
-- No cascading failures
-
-### 4. Network Resilience
-
-The setup uses multiple networks:
-```yaml
 networks:
-  default:    # Service-specific network
+  default:
     name: today-network
     driver: bridge
-  shared-web: # Shared nginx network
+  shared-web:
     external: true
     name: shared-web
 ```
 
-Providing:
-- Network isolation
-- Service discovery
-- Load balancing
-- Failure isolation
+### 4. Deployment
 
-## Maintenance and Recovery
-
-### 1. Normal Operation
-- Services can be started/stopped independently
-- Nginx continues running even when services are down
-- DNS resolution automatically handles service recovery
-
-### 2. Service Updates
+1. Start the app services:
 ```bash
-# Update a service without affecting others
-docker-compose up -d --build frontend
-```
-
-### 3. Nginx Updates
-```bash
-cd nginx
-docker-compose up -d --build
-```
-
-### 4. Full System Recovery
-```bash
-# Start shared infrastructure
-cd nginx
 docker-compose up -d
+```
 
-# Start application services
-cd ..
+2. Verify the deployment:
+- Check container status: `docker ps`
+- View logs: `docker-compose logs -f`
+- Visit https://today.techbrohomelab.xyz
+
+## Adding New Services
+
+To add a new service to this infrastructure:
+
+1. Create a new nginx configuration in `nginx/conf.d/`:
+```nginx
+# Example for a new service
+upstream newapp-frontend-upstream {
+    server newapp-frontend:80 max_fails=3 fail_timeout=10s;
+    server 127.0.0.1:1 backup;
+}
+
+server {
+    listen 80;
+    server_name newapp.techbrohomelab.xyz;
+    # ... rest of the configuration similar to today.conf
+}
+```
+
+2. Add DNS record in Cloudflare:
+- Type: CNAME
+- Name: newapp
+- Target: your-tunnel-domain.cfargotunnel.com
+- Proxy status: Proxied
+
+3. Configure your new service's docker-compose.yml:
+- Connect to shared-web network
+- Use unique container names
+- Expose ports only internally
+
+4. Deploy:
+```bash
+# Reload nginx to pick up new configuration
+cd nginx
+docker-compose restart
+
+# Start your new service
+cd /path/to/your/service
 docker-compose up -d
 ```
 
 ## Troubleshooting
 
-### 1. Service Issues
-If a service is down:
-- Nginx will serve the error page
-- Other services remain unaffected
-- Service can be restarted independently
+1. Check nginx logs:
 ```bash
-docker-compose restart frontend
+cd nginx
+docker-compose logs -f
 ```
 
-### 2. DNS Resolution Issues
-If services aren't being discovered:
+2. Check Cloudflare Tunnel status:
 ```bash
-# Check Docker DNS
-docker exec shared-nginx ping today-frontend
+cloudflared tunnel info <YOUR-TUNNEL-NAME>
 ```
 
-### 3. Network Issues
+3. Check container connectivity:
 ```bash
-# Verify network connectivity
 docker network inspect shared-web
-
-# Check if services are properly connected
-docker network inspect today-network
 ```
 
-### 4. Logs
+4. Verify nginx configuration:
 ```bash
-# Check nginx logs
-docker-compose -f nginx/docker-compose.yml logs -f
-
-# Check service logs
-docker-compose logs -f frontend
-docker-compose logs -f backend
+cd nginx
+docker-compose exec nginx nginx -t
 ```
 
-[Rest of the previous content remains the same...]
+5. Service Unavailability:
+- If a service is down, nginx will display a custom error page
+- Check the specific service logs: `docker logs <container-name>`
+- The shared nginx will continue running even if individual services are down
+- Other services will remain unaffected by one service's failure
+
+## Error Handling
+
+The setup includes several layers of error handling:
+
+1. Service Level:
+- Health checks for both frontend and backend
+- Automatic container restarts
+- Graceful shutdown handling
+
+2. Nginx Level:
+- Custom error pages
+- Upstream failure detection
+- Connection timeouts
+- Automatic request retries
+- Graceful degradation
+
+3. Network Level:
+- Isolated service networks
+- Shared proxy network
+- Cloudflare SSL/TLS protection
+
+This multi-layered approach ensures high availability and graceful degradation when issues occur.

@@ -2,185 +2,315 @@
 
 A real-time dashboard showing market data and tech news.
 
-## Host Machine Setup (Ubuntu EC2)
+## Infrastructure Setup
 
-### Install and Configure Nginx
+### 1. Shared Nginx Setup
 
-1. Update system and install nginx:
+The infrastructure uses a shared nginx container that routes traffic to multiple services based on domain names.
+
+1. Create the shared nginx directory structure:
 ```bash
-# Update package list
-sudo apt update
-
-# Install nginx
-sudo apt install nginx -y
-
-# Start nginx and enable it to start on boot
-sudo systemctl start nginx
-sudo systemctl enable nginx
-
-# Check status
-sudo systemctl status nginx
+mkdir -p nginx/conf.d nginx/html
 ```
 
-2. Set up nginx configuration:
+2. Start the shared nginx service:
 ```bash
-# Create cache directory
-sudo mkdir -p /var/cache/nginx
-
-# Backup default configuration
-sudo mv /etc/nginx/nginx.conf /etc/nginx/nginx.conf.backup
-
-# Copy our main configuration
-sudo cp nginx.conf /etc/nginx/nginx.conf
-
-# Remove default site configuration
-sudo rm /etc/nginx/sites-enabled/default
-
-# Copy our site configuration
-sudo cp nginx-host.conf /etc/nginx/sites-available/samratjha.com
-sudo ln -s /etc/nginx/sites-available/samratjha.com /etc/nginx/sites-enabled/
-
-# Test configuration
-sudo nginx -t
-
-# If test passes, reload nginx
-sudo systemctl reload nginx
+cd nginx
+docker-compose up -d
 ```
 
-3. Set up logging:
-```bash
-# Create log directory if it doesn't exist
-sudo mkdir -p /var/log/nginx
+The shared nginx service configuration (`nginx/docker-compose.yml`):
+```yaml
+version: '3.8'
 
-# Set proper permissions
-sudo chown -R www-data:adm /var/log/nginx
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: shared-nginx
+    volumes:
+      - ./conf.d:/etc/nginx/conf.d
+      - ./html:/usr/share/nginx/html
+    ports:
+      - "80:80"
+    networks:
+      - shared-web
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+networks:
+  shared-web:
+    name: shared-web
+    driver: bridge
 ```
 
-4. Configure firewall:
+### 2. Cloudflare Tunnel Setup
+
+1. Install cloudflared:
 ```bash
-# Allow HTTP traffic
-sudo ufw allow 80/tcp
-
-# Allow HTTPS traffic (if using SSL)
-sudo ufw allow 443/tcp
-
-# Enable firewall if not already enabled
-sudo ufw enable
+# For Debian/Ubuntu
+curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+sudo dpkg -i cloudflared.deb
 ```
 
-5. (Optional) Set up SSL with Certbot:
+2. Authenticate with Cloudflare:
 ```bash
-# Install Certbot
-sudo apt install certbot python3-certbot-nginx -y
-
-# Get SSL certificate
-sudo certbot --nginx -d today.samratjha.com
-
-# Enable auto-renewal
-sudo systemctl enable certbot.timer
-sudo systemctl start certbot.timer
+cloudflared tunnel login
 ```
 
-### Nginx Configuration Details
+3. Create a tunnel:
+```bash
+cloudflared tunnel create shared-services
+```
 
-#### Main Configuration (nginx.conf)
+4. Configure the tunnel in `~/.cloudflared/config.yml`:
+```yaml
+tunnel: <YOUR-TUNNEL-ID>
+credentials-file: /root/.cloudflared/<YOUR-TUNNEL-ID>.json
 
-The main nginx configuration file includes optimized settings for performance and security:
+ingress:
+  - hostname: today.techbrohomelab.xyz
+    service: http://localhost:80
+  - hostname: *.techbrohomelab.xyz
+    service: http://localhost:80
+  - service: http_status:404
+```
 
-1. Worker Processes:
+5. Start the tunnel as a service:
+```bash
+sudo cloudflared service install
+sudo systemctl start cloudflared
+```
+
+## Today App Setup
+
+### 1. Environment Configuration
+
+Create a `.env` file from the template:
+```bash
+cp .env.example .env
+```
+
+Configure the following variables:
+```bash
+# Backend API URL (for frontend)
+VITE_BACKEND_URL=/api
+
+# API Mode (real/mock)
+VITE_API_MODE=real
+
+# Allowed hosts for CORS
+ALLOWED_HOSTS=today.techbrohomelab.xyz
+```
+
+### 2. Nginx Configuration
+
+The nginx configuration includes error handling and resilience features to prevent service disruptions:
+
 ```nginx
-worker_processes auto;  # Automatically sets worker count based on CPU cores
-```
-- For high-traffic sites, you might want to set this manually to CPU core count minus one
+# Upstream definitions with failure handling
+upstream today-frontend-upstream {
+    server today-frontend:80 max_fails=3 fail_timeout=10s;
+    server 127.0.0.1:1 backup;  # Fallback for graceful failure
+}
 
-2. Event Settings:
-```nginx
-events {
-    worker_connections 1024;  # Maximum connections per worker
-    multi_accept on;         # Accept multiple connections per event
-    use epoll;              # Efficient event processing method
+upstream today-backend-upstream {
+    server today-backend:8020 max_fails=3 fail_timeout=10s;
+    server 127.0.0.1:1 backup;  # Fallback for graceful failure
+}
+
+server {
+    listen 80;
+    server_name today.techbrohomelab.xyz;
+    
+    # Custom error handling
+    error_page 502 503 504 /error.html;
+    
+    location / {
+        proxy_pass http://today-frontend-upstream;
+        # Timeouts and error handling
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_next_upstream error timeout http_502 http_503 http_504;
+        proxy_intercept_errors on;
+    }
+    
+    location /api/ {
+        proxy_pass http://today-backend-upstream/;
+        # Similar timeout and error handling settings
+    }
 }
 ```
-- Increase worker_connections for high-traffic sites
-- Default 1024 is good for most cases
 
-3. HTTP Settings:
+Key resilience features:
+- Upstream failure detection (`max_fails=3 fail_timeout=10s`)
+- Graceful degradation with backup servers
+- Custom error pages
+- Connection timeouts
+- Automatic retry on failures
+
+### 3. App Services Configuration
+
+The app's `docker-compose.yml`:
+```yaml
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: today-backend
+    expose:
+      - "8020"
+    environment:
+      - TZ=UTC
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-today.techbrohomelab.xyz}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8020/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - default
+      - shared-web
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: today-frontend
+    expose:
+      - "80"
+    environment:
+      - VITE_BACKEND_URL=/api
+      - VITE_API_MODE=${VITE_API_MODE:-real}
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - default
+      - shared-web
+    restart: unless-stopped
+
+networks:
+  default:
+    name: today-network
+    driver: bridge
+  shared-web:
+    external: true
+    name: shared-web
+```
+
+### 4. Deployment
+
+1. Start the app services:
+```bash
+docker-compose up -d
+```
+
+2. Verify the deployment:
+- Check container status: `docker ps`
+- View logs: `docker-compose logs -f`
+- Visit https://today.techbrohomelab.xyz
+
+## Adding New Services
+
+To add a new service to this infrastructure:
+
+1. Create a new nginx configuration in `nginx/conf.d/`:
 ```nginx
-http {
-    sendfile on;           # Efficient file sending
-    tcp_nopush on;        # Optimize packet sending
-    tcp_nodelay on;       # Reduce latency
-    keepalive_timeout 65; # Keep connections alive
+# Example for a new service
+upstream newapp-frontend-upstream {
+    server newapp-frontend:80 max_fails=3 fail_timeout=10s;
+    server 127.0.0.1:1 backup;
+}
+
+server {
+    listen 80;
+    server_name newapp.techbrohomelab.xyz;
+    # ... rest of the configuration similar to today.conf
 }
 ```
 
-4. SSL Configuration:
-```nginx
-ssl_protocols TLSv1.2 TLSv1.3;              # Modern SSL protocols
-ssl_prefer_server_ciphers on;               # Prefer server ciphers
-ssl_session_cache shared:SSL:10m;           # SSL session cache
+2. Add DNS record in Cloudflare:
+- Type: CNAME
+- Name: newapp
+- Target: your-tunnel-domain.cfargotunnel.com
+- Proxy status: Proxied
+
+3. Configure your new service's docker-compose.yml:
+- Connect to shared-web network
+- Use unique container names
+- Expose ports only internally
+
+4. Deploy:
+```bash
+# Reload nginx to pick up new configuration
+cd nginx
+docker-compose restart
+
+# Start your new service
+cd /path/to/your/service
+docker-compose up -d
 ```
 
-5. Gzip Compression:
-```nginx
-gzip on;
-gzip_types text/plain text/css application/json application/javascript;
-```
-- Reduces bandwidth usage
-- Improves load times
+## Troubleshooting
 
-6. Rate Limiting:
-```nginx
-limit_req_zone $binary_remote_addr zone=one:10m rate=10r/s;
-```
-- Protects against DDoS attacks
-- Adjust rate based on your needs
-
-### Performance Tuning
-
-1. For high-traffic sites:
-```nginx
-worker_processes auto;
-worker_rlimit_nofile 20000;
-events {
-    worker_connections 4096;
-    multi_accept on;
-}
+1. Check nginx logs:
+```bash
+cd nginx
+docker-compose logs -f
 ```
 
-2. For large file transfers:
-```nginx
-client_max_body_size 100M;
-client_body_buffer_size 128k;
+2. Check Cloudflare Tunnel status:
+```bash
+cloudflared tunnel info <YOUR-TUNNEL-NAME>
 ```
 
-3. For better caching:
-```nginx
-open_file_cache max=1000 inactive=20s;
-open_file_cache_valid 30s;
-open_file_cache_min_uses 2;
-open_file_cache_errors on;
+3. Check container connectivity:
+```bash
+docker network inspect shared-web
 ```
 
-### Security Best Practices
-
-1. Hide nginx version:
-```nginx
-server_tokens off;
+4. Verify nginx configuration:
+```bash
+cd nginx
+docker-compose exec nginx nginx -t
 ```
 
-2. Secure headers:
-```nginx
-add_header X-Frame-Options "SAMEORIGIN";
-add_header X-XSS-Protection "1; mode=block";
-add_header X-Content-Type-Options "nosniff";
-```
+5. Service Unavailability:
+- If a service is down, nginx will display a custom error page
+- Check the specific service logs: `docker logs <container-name>`
+- The shared nginx will continue running even if individual services are down
+- Other services will remain unaffected by one service's failure
 
-3. SSL configuration:
-```nginx
-ssl_protocols TLSv1.2 TLSv1.3;
-ssl_prefer_server_ciphers on;
-ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256;
-```
+## Error Handling
 
-[Rest of the existing README content remains the same...]
+The setup includes several layers of error handling:
+
+1. Service Level:
+- Health checks for both frontend and backend
+- Automatic container restarts
+- Graceful shutdown handling
+
+2. Nginx Level:
+- Custom error pages
+- Upstream failure detection
+- Connection timeouts
+- Automatic request retries
+- Graceful degradation
+
+3. Network Level:
+- Isolated service networks
+- Shared proxy network
+- Cloudflare SSL/TLS protection
+
+This multi-layered approach ensures high availability and graceful degradation when issues occur.

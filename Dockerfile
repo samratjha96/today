@@ -16,15 +16,23 @@ COPY . .
 # Build the app
 RUN npm run build
 
-# Runtime stage
-FROM nginx:alpine
+# Production stage
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install serve
+RUN npm install -g serve
 
 # Copy built files from build stage
-COPY --from=build /app/dist /usr/share/nginx/html
+COPY --from=build /app/dist .
 
-# Copy nginx config
-COPY default.conf /etc/nginx/conf.d/default.conf
+# Add healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD wget --quiet --tries=1 --spider http://localhost:80 || exit 1
 
+# Expose port 80
 EXPOSE 80
 
-CMD ["nginx", "-g", "daemon off;"]
+# Start serve
+CMD ["serve", "-p", "80", "-s", "."]

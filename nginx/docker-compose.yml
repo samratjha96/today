@@ -6,10 +6,21 @@ services:
     container_name: shared-nginx
     volumes:
       - ./conf.d:/etc/nginx/conf.d
+      - ./html:/usr/share/nginx/html
     ports:
       - "80:80"
     networks:
       - shared-web
+    # Add healthcheck
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    # Ensure nginx keeps running even if config test fails
+    command: >
+      /bin/sh -c "nginx -g 'daemon off; error_log /dev/stderr info;'"
     restart: unless-stopped
 
 networks:

@@ -22,6 +22,10 @@ RUN uv pip install --system -r requirements.txt
 # Copy the application code
 COPY . .
 
+# Add healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8020/health || exit 1
+
 # Expose the port your app runs on
 EXPOSE 8020
 

@@ -31,7 +31,7 @@
 		@api-python {
 			path /api/python/*
 		}
-		handle @api-pyhon {
+		handle @api-python {
 			uri strip_prefix /api/python
 			reverse_proxy today-python-backend:8020
 		}

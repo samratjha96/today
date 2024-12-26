@@ -5,9 +5,44 @@ import pandas as pd
 import feedparser
 from bs4 import BeautifulSoup
 from fastapi.middleware.cors import CORSMiddleware
+from cachetools import TTLCache
+from functools import wraps
 import os
+from typing import Optional, Callable
 
 app = FastAPI()
+
+def ttl_cache(ttl_seconds: int = 300):
+    """
+    A decorator that implements TTL caching for any function.
+    Default TTL is 5 minutes (300 seconds).
+    """
+    cache = TTLCache(maxsize=100, ttl=ttl_seconds)
+    
+    def decorator(func: Callable):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            cache_key = str(args) + str(kwargs)
+            
+            # Try to get from cache
+            try:
+                return cache[cache_key]
+            except KeyError:
+                pass
+            
+            # Cache miss - call function
+            try:
+                result = await func(*args, **kwargs)
+                cache[cache_key] = result
+                return result
+            except Exception as e:
+                # If function fails but we have stale data, return it
+                if cache_key in cache:
+                    return cache[cache_key]
+                raise e
+                
+        return wrapper
+    return decorator
 
 # Get allowed origins from environment variable or use default
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost, today.techbrohomelab.xyz").split(",")
@@ -100,6 +135,7 @@ async def health_check():
     return {"status": "healthy"}
 
 @app.get("/tickers", response_model=list[TickerData])
+@ttl_cache(ttl_seconds=300)  # Cache for 5 minutes
 async def get_tickers():
     ticker_list = DEFAULT_TICKERS
     data = get_etf_data(ticker_list)

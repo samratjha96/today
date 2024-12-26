@@ -10,9 +10,8 @@
 	}
 }
 
-# Global configuration for all subdomains
-*.techbrohomelab.xyz {
-	# Global security headers
+:80 {
+	# Global security headers for all requests
 	header {
 		X-Content-Type-Options "nosniff"
 		X-XSS-Protection "1; mode=block"
@@ -22,59 +21,34 @@
 		-X-Powered-By
 	}
 
-	handle_errors {
-		respond "Error: {err.status_code} {err.status_text}"
-	}
-}
-
-today.techbrohomelab.xyz {
-	header {
-		X-Content-Type-Options "nosniff"
-		X-XSS-Protection "1; mode=block"
-		X-Frame-Options "SAMEORIGIN"
-		Referrer-Policy "strict-origin-when-cross-origin"
-		-Server
-		-X-Powered-By
+	# Match requests for today service (both localhost and subdomain)
+	@today {
+		host localhost today.techbrohomelab.xyz
 	}
 
-	@api {
-		path_regexp api ^/api/.*
-	}
-	handle @api {
-		uri strip_prefix /api
-		reverse_proxy today-stocks-backend:8020
+	handle @today {
+		# API requests
+		@api {
+			path_regexp api ^/api/.*
+		}
+		handle @api {
+			uri strip_prefix /api
+			reverse_proxy today-stocks-backend:8020
+		}
+
+		# Frontend requests
+		handle {
+			reverse_proxy today-frontend:80
+		}
 	}
 
-	handle {
-		reverse_proxy today-frontend:80
+	# Handle all other subdomains of techbrohomelab.xyz
+	@other_subdomains {
+		host *.techbrohomelab.xyz
 	}
 
-	handle_errors {
-		respond "Error: {err.status_code} {err.status_text}"
-	}
-}
-
-# Local development configuration
-localhost {
-	header {
-		X-Content-Type-Options "nosniff"
-		X-XSS-Protection "1; mode=block"
-		X-Frame-Options "SAMEORIGIN"
-		Referrer-Policy "strict-origin-when-cross-origin"
-		-Server
-		-X-Powered-By
-	}
-
-	@api {
-		path_regexp api ^/api/.*
-	}
-	handle @api {
-		uri strip_prefix /api
-		reverse_proxy today-stocks-backend:8020
-	}
-
-	handle {
-		reverse_proxy today-frontend:80
+	handle @other_subdomains {
+		respond "Subdomain configured but no service defined" 404
 	}
 
 	handle_errors {

@@ -20,7 +20,9 @@ const Index = () => {
               {marketSentiment && (
                 <span
                   className={cn(
-                    marketSentiment === "bullish" ? "text-green-400" : "text-red-400"
+                    marketSentiment === "bullish"
+                      ? "text-green-400"
+                      : "text-red-400",
                   )}
                 >
                   {marketSentiment === "bullish" ? "W" : "L"}

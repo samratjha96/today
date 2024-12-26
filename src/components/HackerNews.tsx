@@ -12,29 +12,29 @@ const mockHNData: HNPost[] = [
     points: 789,
     author: "rustdev",
     comments: 234,
-    url: "https://example.com/rust-js"
+    url: "https://example.com/rust-js",
   },
   {
     title: "The Future of Web Development: WASM and Beyond",
     points: 567,
     author: "webdev",
     comments: 189,
-    url: "https://example.com/wasm"
+    url: "https://example.com/wasm",
   },
   {
     title: "New AI Model Achieves Human-Level Performance",
     points: 432,
     author: "airesearcher",
     comments: 156,
-    url: "https://example.com/ai-model"
+    url: "https://example.com/ai-model",
   },
   {
     title: "Understanding Modern CPU Architecture",
     points: 345,
     author: "cpuexpert",
     comments: 123,
-    url: "https://example.com/cpu"
-  }
+    url: "https://example.com/cpu",
+  },
 ];
 const fetchHNData = async (): Promise<HNPost[]> => {
   return Promise.resolve(mockHNData);
@@ -58,7 +58,9 @@ export const HackerNews = () => {
         <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-terminal-secondary mb-4">
           <span className="text-xl">📰</span>
         </div>
-        <h3 className="text-terminal-text font-mono text-lg mb-2">No HN Stories</h3>
+        <h3 className="text-terminal-text font-mono text-lg mb-2">
+          No HN Stories
+        </h3>
         <p className="text-terminal-text/60 font-mono text-sm">
           Unable to fetch Hacker News stories. Please try again later.
         </p>

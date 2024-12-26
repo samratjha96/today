@@ -1,5 +1,12 @@
 import { useState } from "react";
-import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "./ui/pagination";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "./ui/pagination";
 import { cn } from "@/lib/utils";
 import { useRSSData } from "@/hooks/use-rss-data";
 
@@ -23,7 +30,9 @@ export const RSSFeed = () => {
         <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-terminal-secondary mb-4">
           <span className="text-xl">📰</span>
         </div>
-        <h3 className="text-terminal-text font-mono text-lg mb-2">No News Available</h3>
+        <h3 className="text-terminal-text font-mono text-lg mb-2">
+          No News Available
+        </h3>
         <p className="text-terminal-text/60 font-mono text-sm">
           Unable to fetch news articles at this time. Please check back later.
         </p>
@@ -64,11 +73,13 @@ export const RSSFeed = () => {
           <Pagination>
             <PaginationContent>
               <PaginationItem>
-                <PaginationPrevious 
-                  onClick={() => currentPage > 1 && setCurrentPage(p => Math.max(1, p - 1))}
+                <PaginationPrevious
+                  onClick={() =>
+                    currentPage > 1 && setCurrentPage((p) => Math.max(1, p - 1))
+                  }
                   className={cn(
                     "text-[#33C3F0] hover:text-[#1EAEDB] cursor-pointer",
-                    currentPage === 1 && "pointer-events-none opacity-50"
+                    currentPage === 1 && "pointer-events-none opacity-50",
                   )}
                 />
               </PaginationItem>
@@ -79,7 +90,8 @@ export const RSSFeed = () => {
                     isActive={currentPage === i + 1}
                     className={cn(
                       "text-[#33C3F0] hover:text-[#1EAEDB] cursor-pointer",
-                      currentPage === i + 1 && "border border-[#33C3F0] bg-transparent"
+                      currentPage === i + 1 &&
+                        "border border-[#33C3F0] bg-transparent",
                     )}
                   >
                     {i + 1}
@@ -88,10 +100,14 @@ export const RSSFeed = () => {
               ))}
               <PaginationItem>
                 <PaginationNext
-                  onClick={() => currentPage < totalPages && setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  onClick={() =>
+                    currentPage < totalPages &&
+                    setCurrentPage((p) => Math.min(totalPages, p + 1))
+                  }
                   className={cn(
                     "text-[#33C3F0] hover:text-[#1EAEDB] cursor-pointer",
-                    currentPage === totalPages && "pointer-events-none opacity-50"
+                    currentPage === totalPages &&
+                      "pointer-events-none opacity-50",
                   )}
                 />
               </PaginationItem>

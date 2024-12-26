@@ -1,6 +1,13 @@
 import { cn } from "@/lib/utils";
 import { useState } from "react";
-import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "./ui/pagination";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "./ui/pagination";
 import { useTickerData } from "@/hooks/use-ticker-data";
 import { TickerCard } from "./TickerCard";
 
@@ -26,7 +33,9 @@ export const TickerTable = () => {
         <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-terminal-secondary mb-4">
           <span className="text-xl">📊</span>
         </div>
-        <h3 className="text-terminal-text font-mono text-lg mb-2">No Market Data Available</h3>
+        <h3 className="text-terminal-text font-mono text-lg mb-2">
+          No Market Data Available
+        </h3>
         <p className="text-terminal-text/60 font-mono text-sm">
           Unable to fetch market data at this time. Please try again later.
         </p>
@@ -58,11 +67,13 @@ export const TickerTable = () => {
           <Pagination>
             <PaginationContent>
               <PaginationItem>
-                <PaginationPrevious 
-                  onClick={() => currentPage > 1 && setCurrentPage(p => Math.max(1, p - 1))}
+                <PaginationPrevious
+                  onClick={() =>
+                    currentPage > 1 && setCurrentPage((p) => Math.max(1, p - 1))
+                  }
                   className={cn(
                     "text-terminal-text hover:text-terminal-accent cursor-pointer",
-                    currentPage === 1 && "pointer-events-none opacity-50"
+                    currentPage === 1 && "pointer-events-none opacity-50",
                   )}
                 />
               </PaginationItem>
@@ -73,7 +84,8 @@ export const TickerTable = () => {
                     isActive={currentPage === i + 1}
                     className={cn(
                       "text-terminal-text hover:text-terminal-accent cursor-pointer",
-                      currentPage === i + 1 && "border border-terminal-accent bg-transparent"
+                      currentPage === i + 1 &&
+                        "border border-terminal-accent bg-transparent",
                     )}
                   >
                     {i + 1}
@@ -82,10 +94,14 @@ export const TickerTable = () => {
               ))}
               <PaginationItem>
                 <PaginationNext
-                  onClick={() => currentPage < totalPages && setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  onClick={() =>
+                    currentPage < totalPages &&
+                    setCurrentPage((p) => Math.min(totalPages, p + 1))
+                  }
                   className={cn(
                     "text-terminal-text hover:text-terminal-accent cursor-pointer",
-                    currentPage === totalPages && "pointer-events-none opacity-50"
+                    currentPage === totalPages &&
+                      "pointer-events-none opacity-50",
                   )}
                 />
               </PaginationItem>

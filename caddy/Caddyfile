@@ -1,73 +1,83 @@
 {
-	# Global options
 	admin off
-	
-	# Global security settings
 	servers {
-		protocols h2c h2 h1
-		timeouts {
-			read_body 10s
-			read_header 10s
-			write 30s
-			idle 2m
-		}
+		protocols h1 h2 h2c
+	}
+	log {
+		output stderr
+		format console
+		level DEBUG
 	}
 }
 
-:80 {
-	@today host today.techbrohomelab.xyz
-	handle @today {
-		# Security headers
-		header {
-			# XSS Protection
-			X-Frame-Options "SAMEORIGIN"
-			X-XSS-Protection "1; mode=block"
-			X-Content-Type-Options "nosniff"
-			
-			# Content Security Policy
-			Content-Security-Policy "default-src 'self' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; font-src 'self' https:; connect-src 'self' https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
-			
-			# Additional security headers
-			Referrer-Policy "strict-origin-when-cross-origin"
-			Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-			Permissions-Policy "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
-			
-			# Remove server information
-			-Server
-			-X-Powered-By
-		}
-		
-		# API handling
-		@api path /api/*
-		handle @api {
-			reverse_proxy today-backend:8020 {
-				header_up X-Real-IP {remote_host}
-				header_up X-Forwarded-For {remote_host}
-				header_up X-Forwarded-Proto {scheme}
-				
-				transport http {
-					read_buffer 4kb
-					write_buffer 4kb
-				}
-			}
-			uri strip_prefix /api
-		}
-		
-		# Frontend handling
-		handle {
-			reverse_proxy today-frontend:80 {
-				header_up X-Real-IP {remote_host}
-				header_up X-Forwarded-For {remote_host}
-				header_up X-Forwarded-Proto {scheme}
-			}
-		}
+# Global configuration for all subdomains
+*.techbrohomelab.xyz {
+	# Global security headers
+	header {
+		X-Content-Type-Options "nosniff"
+		X-XSS-Protection "1; mode=block"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+		-X-Powered-By
 	}
 
-	# Error handling
 	handle_errors {
-		rewrite * /error.html
-		file_server {
-			root /usr/share/caddy/error
-		}
+		respond "Error: {err.status_code} {err.status_text}"
+	}
+}
+
+today.techbrohomelab.xyz {
+	header {
+		X-Content-Type-Options "nosniff"
+		X-XSS-Protection "1; mode=block"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+		-X-Powered-By
+	}
+
+	@api {
+		path_regexp api ^/api/.*
+	}
+	handle @api {
+		uri strip_prefix /api
+		reverse_proxy today-stocks-backend:8020
+	}
+
+	handle {
+		reverse_proxy today-frontend:80
+	}
+
+	handle_errors {
+		respond "Error: {err.status_code} {err.status_text}"
+	}
+}
+
+# Local development configuration
+localhost {
+	header {
+		X-Content-Type-Options "nosniff"
+		X-XSS-Protection "1; mode=block"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+		-X-Powered-By
+	}
+
+	@api {
+		path_regexp api ^/api/.*
+	}
+	handle @api {
+		uri strip_prefix /api
+		reverse_proxy today-stocks-backend:8020
+	}
+
+	handle {
+		reverse_proxy today-frontend:80
+	}
+
+	handle_errors {
+		respond "Error: {err.status_code} {err.status_text}"
 	}
 }

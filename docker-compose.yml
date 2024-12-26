@@ -1,11 +1,11 @@
 version: '3.8'
 
 services:
-  backend:
+  stocks-backend:
     build:
-      context: ./backend
+      context: ./backend/python-stocks
       dockerfile: Dockerfile
-    container_name: today-backend
+    container_name: today-stocks-backend
     expose:
       - "8020"  # Only expose to internal network
     environment:
@@ -28,12 +28,12 @@ services:
       dockerfile: Dockerfile
     container_name: today-frontend
     expose:
-      - "80"  # Only expose to internal network
+      - "80"
     environment:
       - VITE_BACKEND_URL=/api
       - VITE_API_MODE=${VITE_API_MODE:-real}
     depends_on:
-      backend:
+      stocks-backend:
         condition: service_healthy
     networks:
       - default

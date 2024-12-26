@@ -10,7 +10,7 @@ import os
 app = FastAPI()
 
 # Get allowed origins from environment variable or use default
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "today.techbrohomelab.xyz").split(",")
+ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost, today.techbrohomelab.xyz").split(",")
 origins = [
     f"https://{host.strip()}" for host in ALLOWED_HOSTS
 ]

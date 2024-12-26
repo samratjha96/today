@@ -5,7 +5,7 @@ services:
     build:
       context: ./backend/python-backend
       dockerfile: Dockerfile
-    container_name: today-backend-backend
+    container_name: today-python-backend
     expose:
       - "8020"  # Only expose to internal network
     environment:

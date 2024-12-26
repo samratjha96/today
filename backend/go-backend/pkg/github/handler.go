@@ -6,20 +6,22 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	cache "github.com/patrickmn/go-cache"
+	"github.com/gofiber/fiber/v2/middleware/cache"
 )
 
-var (
-	// Create a cache with a default expiration time of 5 minutes and purge unused items every 10 minutes
-	repoCache = cache.New(5*time.Minute, 10*time.Minute)
-	cacheKey  = "trending_repos"
-)
+type Handler struct {
+	client *http.Client
+}
 
-func fetchTrendingRepos() ([]Repository, error) {
-	client := &http.Client{
-		Timeout: 10 * time.Second,
+func NewHandler() *Handler {
+	return &Handler{
+		client: &http.Client{
+			Timeout: 10 * time.Second,
+		},
 	}
+}
 
+func (h *Handler) fetchTrendingRepos() ([]Repository, error) {
 	req, err := http.NewRequest("GET", "https://api.gitterapp.com/repositories?since=daily", nil)
 	if err != nil {
 		return nil, err
@@ -28,7 +30,7 @@ func fetchTrendingRepos() ([]Repository, error) {
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := client.Do(req)
+	resp, err := h.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -42,30 +44,28 @@ func fetchTrendingRepos() ([]Repository, error) {
 	return repos, nil
 }
 
+func (h *Handler) GetTrendingRepos(c *fiber.Ctx) error {
+	repos, err := h.fetchTrendingRepos()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(repos)
+}
+
 // RegisterRoutes registers the GitHub routes with the given fiber app
-func RegisterRoutes(router fiber.Router) {
-	github := router.Group("/github")
+func (h *Handler) RegisterRoutes(app *fiber.App) {
+	// Cache middleware configuration
+	cacheConfig := cache.Config{
+		Next: func(c *fiber.Ctx) bool {
+			return c.Query("refresh") == "true" // Skip cache if refresh query param is true
+		},
+		Expiration:   5 * time.Minute,
+		CacheControl: true,
+	}
 
-	github.Get("/trending", func(c *fiber.Ctx) error {
-		// Try to get data from cache first
-		if cached, found := repoCache.Get(cacheKey); found {
-			return c.JSON(cached.([]Repository))
-		}
-
-		// Cache miss - fetch new data
-		repos, err := fetchTrendingRepos()
-		if err != nil {
-			// If fetch fails, try to get stale data from cache with no expiration
-			if cached, found := repoCache.Get(cacheKey); found {
-				return c.JSON(cached.([]Repository))
-			}
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": err.Error(),
-			})
-		}
-
-		// Store in cache
-		repoCache.Set(cacheKey, repos, cache.DefaultExpiration)
-		return c.JSON(repos)
-	})
+	// Apply cache middleware only to the trending endpoint
+	app.Get("/github/trending", cache.New(cacheConfig), h.GetTrendingRepos)
 }

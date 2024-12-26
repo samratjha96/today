@@ -1,94 +1,102 @@
 package hackernews
 
 import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cache"
+)
+
+const (
+	hackerNewsTopStoriesURL = "https://hacker-news.firebaseio.com/v0/topstories.json"
+	hackerNewsStoryURL      = "https://hacker-news.firebaseio.com/v0/item/%d.json"
 )
 
 // Handler handles HackerNews related requests
-type Handler struct{}
+type Handler struct {
+	client *http.Client
+}
 
 // NewHandler creates a new HackerNews handler
 func NewHandler() *Handler {
-	return &Handler{}
+	return &Handler{
+		client: &http.Client{
+			Timeout: 10 * time.Second,
+		},
+	}
+}
+
+// RegisterRoutes registers the HackerNews routes with caching
+func (h *Handler) RegisterRoutes(app *fiber.App) {
+	// Cache middleware configuration
+	cacheConfig := cache.Config{
+		Next: func(c *fiber.Ctx) bool {
+			return c.Query("refresh") == "true" // Skip cache if refresh query param is true
+		},
+		Expiration:   5 * time.Minute,
+		CacheControl: true,
+	}
+
+	// Apply cache middleware only to the top stories endpoint
+	app.Get("/hackernews/top", cache.New(cacheConfig), h.GetTopStories)
 }
 
 // GetTopStories returns the top HackerNews stories
 func (h *Handler) GetTopStories(c *fiber.Ctx) error {
-	// Mock data for now
-	currentTime := time.Now().Unix()
-	stories := []Story{
-		{
-			By:          "nateb2022",
-			Descendants: 26,
-			ID:          42512896,
-			Score:       100,
-			Time:        currentTime,
-			Title:       "Blackcandy: Self hosted music streaming server",
-			Type:        "story",
-			URL:         "https://github.com/blackcandy-org/blackcandy",
-		},
-		{
-			By:          "dhouston",
-			Descendants: 71,
-			ID:          42512897,
-			Score:       150,
-			Time:        currentTime - 3600, // 1 hour ago
-			Title:       "Rust vs Go: A Systems Programming Showdown",
-			Type:        "story",
-			URL:         "https://example.com/rust-vs-go",
-		},
-		{
-			By:          "pg",
-			Descendants: 42,
-			ID:          42512898,
-			Score:       200,
-			Time:        currentTime - 7200, // 2 hours ago
-			Title:       "The Future of Web Development in 2024",
-			Type:        "story",
-			URL:         "https://example.com/web-dev-2024",
-		},
-		{
-			By:          "sama",
-			Descendants: 89,
-			ID:          42512899,
-			Score:       300,
-			Time:        currentTime - 10800, // 3 hours ago
-			Title:       "New Developments in Large Language Models",
-			Type:        "story",
-			URL:         "https://example.com/llm-developments",
-		},
-		{
-			By:          "patio11",
-			Descendants: 55,
-			ID:          42512900,
-			Score:       250,
-			Time:        currentTime - 14400, // 4 hours ago
-			Title:       "The Economics of Software Development",
-			Type:        "story",
-			URL:         "https://example.com/software-economics",
-		},
-		{
-			By:          "tptacek",
-			Descendants: 34,
-			ID:          42512901,
-			Score:       180,
-			Time:        currentTime - 18000, // 5 hours ago
-			Title:       "Advanced Cryptography Patterns in Modern Applications",
-			Type:        "story",
-			URL:         "https://example.com/crypto-patterns",
-		},
-		{
-			By:          "janesmith",
-			Descendants: 63,
-			ID:          42512902,
-			Score:       220,
-			Time:        currentTime - 21600, // 6 hours ago
-			Title:       "Understanding WebAssembly Performance",
-			Type:        "story",
-			URL:         "https://example.com/wasm-performance",
-		},
+	// Get top story IDs
+	resp, err := h.client.Get(hackerNewsTopStoriesURL)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("Failed to fetch top stories: %v", err),
+		})
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("Failed to read response body: %v", err),
+		})
+	}
+
+	var storyIDs []int
+	if err := json.Unmarshal(body, &storyIDs); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("Failed to parse story IDs: %v", err),
+		})
+	}
+
+	// Get details for top 10 stories
+	stories := make([]Story, 0, 10)
+	for _, id := range storyIDs[:10] {
+		storyURL := fmt.Sprintf(hackerNewsStoryURL, id)
+		resp, err := h.client.Get(storyURL)
+		if err != nil {
+			continue // Skip this story if there's an error
+		}
+		defer resp.Body.Close()
+
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			continue
+		}
+
+		var story Story
+		if err := json.Unmarshal(body, &story); err != nil {
+			continue
+		}
+
+		stories = append(stories, story)
+	}
+
+	if len(stories) == 0 {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to fetch any stories",
+		})
 	}
 
 	return c.JSON(stories)

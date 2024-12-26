@@ -34,12 +34,13 @@ func main() {
 		return c.SendStatus(fiber.StatusOK)
 	})
 
-	github.RegisterRoutes(app)
+	// GitHub routes with caching
+	ghHandler := github.NewHandler()
+	ghHandler.RegisterRoutes(app)
 
-	// HackerNews routes
+	// HackerNews routes with caching
 	hnHandler := hackernews.NewHandler()
-	// HackerNews routes
-	app.Get("/hackernews/top", hnHandler.GetTopStories)
+	hnHandler.RegisterRoutes(app)
 
 	log.Printf("Server starting on port %s\n", port)
 	log.Fatal(app.Listen(":" + port))

@@ -20,9 +20,7 @@ const Index = () => {
               {marketSentiment && (
                 <span
                   className={cn(
-                    marketSentiment === "bullish"
-                      ? "text-green-400"
-                      : "text-red-400",
+                    marketSentiment === "bullish" ? "text-green-400" : "text-red-400"
                   )}
                 >
                   {marketSentiment === "bullish" ? "W" : "L"}
@@ -47,12 +45,6 @@ const Index = () => {
 
           {/* Right column - News and Updates */}
           <div className="md:col-span-9 space-y-6">
-            <section>
-              <h2 className="font-mono text-sm text-terminal-text/60 flex items-center gap-2 mb-4">
-                💻 Tech News
-              </h2>
-              <RSSFeed />
-            </section>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <section>
                 <h2 className="font-mono text-sm text-terminal-text/60 flex items-center gap-2 mb-4">
@@ -67,6 +59,12 @@ const Index = () => {
                 <HackerNews />
               </section>
             </div>
+            <section>
+              <h2 className="font-mono text-sm text-terminal-text/60 flex items-center gap-2 mb-4">
+                💻 Tech News
+              </h2>
+              <RSSFeed />
+            </section>
           </div>
         </div>
       </div>

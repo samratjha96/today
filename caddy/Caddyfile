@@ -11,22 +11,22 @@
 }
 
 :80 {
-	# Global security headers for all requests
-	header {
-		X-Content-Type-Options "nosniff"
-		X-XSS-Protection "1; mode=block"
-		X-Frame-Options "SAMEORIGIN"
-		Referrer-Policy "strict-origin-when-cross-origin"
-		-Server
-		-X-Powered-By
+	# Match requests for today service and localhost
+	@host {
+		host localhost localhost:80 today.techbrohomelab.xyz
 	}
 
-	# Match requests for today service (both localhost and subdomain)
-	@today {
-		host localhost today.techbrohomelab.xyz
-	}
+	handle @host {
+		# Global security headers
+		header {
+			X-Content-Type-Options "nosniff"
+			X-XSS-Protection "1; mode=block"
+			X-Frame-Options "SAMEORIGIN"
+			Referrer-Policy "strict-origin-when-cross-origin"
+			-Server
+			-X-Powered-By
+		}
 
-	handle @today {
 		# API requests
 		@api {
 			path_regexp api ^/api/.*
@@ -42,7 +42,7 @@
 		}
 	}
 
-	# Handle all other subdomains of techbrohomelab.xyz
+	# Handle all other subdomains
 	@other_subdomains {
 		host *.techbrohomelab.xyz
 	}

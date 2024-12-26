@@ -69,7 +69,7 @@ const fetchTickerData = async (): Promise<TickerData[]> => {
     return MOCK_DATA;
   }
 
-  const url = `${BACKEND_URL}/tickers`;
+  const url = `${BACKEND_URL}/python/tickers`;
 
   try {
     const response = await fetch(url);

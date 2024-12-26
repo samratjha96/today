@@ -27,13 +27,21 @@
 			-X-Powered-By
 		}
 
-		# API requests
+		# API requests - Python backend (strip prefix)
+		@api-python {
+			path /api/python/*
+		}
+		handle @api-pyhon {
+			uri strip_prefix /api/python
+			reverse_proxy today-python-backend:8020
+		}
+
 		@api {
-			path_regexp api ^/api/.*
+			path /api/*
 		}
 		handle @api {
 			uri strip_prefix /api
-			reverse_proxy today-stocks-backend:8020
+			reverse_proxy today-go-backend:3001
 		}
 
 		# Frontend requests

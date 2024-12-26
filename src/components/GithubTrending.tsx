@@ -76,26 +76,26 @@ export const GithubTrending = () => {
         {currentItems.map((repo, index) => (
           <div
             key={index}
-            className="p-4 bg-terminal-bg/50 hover:bg-terminal-secondary/50 transition-colors"
+            className="p-4 bg-terminal-bg/50 hover:bg-terminal-secondary/50 transition-colors h-[120px] flex flex-col justify-between"
           >
-            <div className="flex flex-col space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+            <div className="flex flex-col h-full">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
                   <img
                     src={repo.avatar}
                     alt={`${repo.author}'s avatar`}
-                    className="w-4 h-4 rounded-full"
+                    className="w-4 h-4 rounded-full flex-shrink-0"
                   />
                   <a
                     href={repo.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[#33C3F0] font-mono text-sm hover:underline"
+                    className="text-[#33C3F0] font-mono text-sm hover:underline truncate"
                   >
                     {repo.author}/{repo.name}
                   </a>
                 </div>
-                <div className="flex items-center gap-3 text-terminal-text/60 font-mono text-xs">
+                <div className="flex items-center gap-3 text-terminal-text/60 font-mono text-xs flex-shrink-0 ml-2">
                   <span>⭐ {repo.stars.toLocaleString()}</span>
                   <span>🔱 {repo.forks.toLocaleString()}</span>
                   <span className="text-green-400">
@@ -103,13 +103,13 @@ export const GithubTrending = () => {
                   </span>
                 </div>
               </div>
-              <p className="text-terminal-text/80 font-mono text-xs line-clamp-2">
+              <p className="text-terminal-text/80 font-mono text-xs line-clamp-2 mb-2 flex-1">
                 {repo.description}
               </p>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between mt-auto">
                 <div className="flex items-center gap-1.5">
                   <span
-                    className="w-3 h-3 rounded-full"
+                    className="w-3 h-3 rounded-full flex-shrink-0"
                     style={{ backgroundColor: repo.languageColor }}
                   />
                   <span className="text-terminal-text/40 font-mono text-xs">
@@ -147,7 +147,7 @@ export const GithubTrending = () => {
               "px-3 py-1 rounded font-mono text-xs",
               currentPage === 1
                 ? "text-terminal-text/40 cursor-not-allowed"
-                : "text-terminal-text hover:bg-terminal-secondary",
+                : "text-terminal-text hover:bg-terminal-secondary"
             )}
           >
             Previous
@@ -164,7 +164,7 @@ export const GithubTrending = () => {
               "px-3 py-1 rounded font-mono text-xs",
               currentPage === totalPages
                 ? "text-terminal-text/40 cursor-not-allowed"
-                : "text-terminal-text hover:bg-terminal-secondary",
+                : "text-terminal-text hover:bg-terminal-secondary"
             )}
           >
             Next

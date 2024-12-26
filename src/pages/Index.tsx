@@ -13,7 +13,7 @@ const Index = () => {
     <div className="min-h-screen bg-terminal-bg text-terminal-text p-4 md:p-6">
       <div className="max-w-7xl mx-auto">
         <div className="border-b border-terminal-accent/20 pb-4 mb-6">
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center justify-center space-x-2">
             <div className="w-3 h-3 rounded-full bg-terminal-accent animate-pulse" />
             <h1 className="font-mono text-xl">
               Today is looking like a{" "}

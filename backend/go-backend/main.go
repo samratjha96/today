@@ -14,6 +14,7 @@ import (
 	"go-backend/pkg/database"
 	"go-backend/pkg/github"
 	"go-backend/pkg/hackernews"
+	"go-backend/pkg/tickers"
 )
 
 // Job represents a scheduled job with its configuration
@@ -133,6 +134,10 @@ func main() {
 	// HackerNews routes with database persistence
 	hnHandler := hackernews.NewHandler()
 	hnHandler.RegisterRoutes(app)
+
+	// Tickers routes
+	tickerHandler := tickers.NewHandler()
+	tickerHandler.RegisterRoutes(app)
 
 	// Start scheduled jobs in a goroutine
 	go scheduledJobs(ghHandler, hnHandler)

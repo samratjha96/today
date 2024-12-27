@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import {
   Pagination,
   PaginationContent,
@@ -7,7 +7,7 @@ import {
   PaginationLink,
   PaginationNext,
   PaginationPrevious,
-} from "../ui/pagination";
+} from "@/components/ui/pagination";
 
 interface PaginationProps {
   currentPage: number;
@@ -46,7 +46,7 @@ const PaginationControls = ({
                   className={cn(
                     "text-terminal-text hover:text-terminal-accent cursor-pointer",
                     currentPage === i + 1 &&
-                      "border border-terminal-accent bg-transparent"
+                    "border border-terminal-accent bg-transparent"
                   )}
                 >
                   {i + 1}
@@ -117,6 +117,7 @@ export interface WithPaginationProps<T> {
   paginationVariant?: "simple" | "numbered";
   currentPage?: number;
   onPageChange?: (page: number) => void;
+  autoPaginate?: boolean;
 }
 
 export function withPagination<T>(
@@ -124,6 +125,8 @@ export function withPagination<T>(
 ) {
   return function PaginatedComponent(props: WithPaginationProps<T>) {
     const [internalCurrentPage, setInternalCurrentPage] = useState(1);
+    const [direction, setDirection] = useState<'up' | 'down' | null>(null);
+    const [isAnimating, setIsAnimating] = useState(false);
     const {
       data,
       isLoading,
@@ -137,7 +140,42 @@ export function withPagination<T>(
       paginationVariant = "simple",
       currentPage = internalCurrentPage,
       onPageChange = setInternalCurrentPage,
+      autoPaginate = true,
     } = props;
+
+    useEffect(() => {
+      if (isAnimating) {
+        const timer = setTimeout(() => {
+          setIsAnimating(false);
+          setDirection(null);
+        }, 500);
+        return () => clearTimeout(timer);
+      }
+    }, [isAnimating]);
+
+    useEffect(() => {
+      let interval: NodeJS.Timeout | null = null;
+
+      if (autoPaginate && data && data.length > itemsPerPage) {
+        interval = setInterval(() => {
+          const totalPages = Math.ceil(data.length / itemsPerPage);
+          const nextPage = currentPage < totalPages ? currentPage + 1 : 1;
+          handlePageChange(nextPage);
+        }, 15000);
+      }
+
+      return () => {
+        if (interval) {
+          clearInterval(interval);
+        }
+      };
+    }, [autoPaginate, currentPage, data, itemsPerPage]);
+
+    const handlePageChange = (newPage: number) => {
+      setDirection(newPage > currentPage ? 'up' : 'down');
+      setIsAnimating(true);
+      onPageChange(newPage);
+    };
 
     if (isLoading) {
       return (
@@ -171,17 +209,66 @@ export function withPagination<T>(
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
     const currentItems = data.slice(startIndex, endIndex);
+    const shouldAnimate = totalPages > 1;
 
     return (
       <div className={containerClassName}>
-        <div className={itemsContainerClassName}>
-          {currentItems.map((item, index) => renderItem(item))}
+        <style>
+          {`
+            @keyframes scrollUp {
+              0% {
+                transform: translateY(100%);
+              }
+              100% {
+                transform: translateY(0);
+              }
+            }
+            @keyframes scrollDown {
+              0% {
+                transform: translateY(-100%);
+              }
+              100% {
+                transform: translateY(0);
+              }
+            }
+            .scroll-up {
+              animation: scrollUp 0.5s cubic-bezier(0.4, 0.0, 0.2, 1) forwards;
+            }
+            .scroll-down {
+              animation: scrollDown 0.5s cubic-bezier(0.4, 0.0, 0.2, 1) forwards;
+            }
+            .hide-scrollbar {
+              -ms-overflow-style: none;
+              scrollbar-width: none;
+            }
+            .hide-scrollbar::-webkit-scrollbar {
+              display: none;
+            }
+            .content-container {
+              position: relative;
+              overflow: hidden;
+            }
+          `}
+        </style>
+        <div className={cn(
+          itemsContainerClassName,
+          shouldAnimate && isAnimating && "hide-scrollbar overflow-hidden"
+        )}>
+          <div className={shouldAnimate ? "content-container" : undefined}>
+            <div className={cn(
+              "divide-y divide-terminal-accent/20",
+              shouldAnimate && direction === 'up' && isAnimating && 'scroll-up',
+              shouldAnimate && direction === 'down' && isAnimating && 'scroll-down'
+            )}>
+              {currentItems.map((item, index) => renderItem(item))}
+            </div>
+          </div>
         </div>
         {totalPages > 1 && (
           <PaginationControls
             currentPage={currentPage}
             totalPages={totalPages}
-            onPageChange={onPageChange}
+            onPageChange={handlePageChange}
             variant={paginationVariant}
           />
         )}

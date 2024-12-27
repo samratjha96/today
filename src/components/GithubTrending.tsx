@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { withPagination } from "./hoc/withPagination";
+import { withPagination } from "@/components/hoc/withPagination";
 
 interface GithubContributor {
   username: string;

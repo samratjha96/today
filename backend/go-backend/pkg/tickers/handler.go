@@ -17,6 +17,10 @@ func (h *Handler) RegisterRoutes(app *fiber.App) {
 }
 
 func (h *Handler) GetTickers(c *fiber.Ctx) error {
+	if data, ok := getCachedData(); ok {
+		return c.JSON(data)
+	}
+
 	results := make(chan *TickerData, len(DefaultTickers))
 	errors := make(chan error, len(DefaultTickers))
 
@@ -58,6 +62,10 @@ func (h *Handler) GetTickers(c *fiber.Ctx) error {
 
 	if len(tickerData) == 0 && len(errs) > 0 {
 		return fiber.NewError(fiber.StatusInternalServerError, errs[0].Error())
+	}
+
+	if len(tickerData) > 0 {
+		updateCache(tickerData)
 	}
 
 	return c.JSON(tickerData)

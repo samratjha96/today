@@ -3,7 +3,7 @@ FROM golang:1.21-alpine AS builder
 
 WORKDIR /app
 
-# Install build dependencies including gcc and musl-dev for CGO
+# Install build dependencies
 RUN apk add --no-cache git gcc musl-dev
 
 # Copy go mod files
@@ -27,17 +27,14 @@ FROM alpine:latest
 
 WORKDIR /app
 
-# Install required runtime dependencies
-RUN apk add --no-cache sqlite
+# Install curl for healthcheck and sqlite for database
+RUN apk add --no-cache curl sqlite
 
 # Create data directory for SQLite database
-RUN mkdir -p /app/data && chown -R nobody:nobody /app/data
+RUN mkdir -p /app/data
 
 # Copy binary from builder
 COPY --from=builder /app/main .
-
-# Use non-root user
-USER nobody
 
 # Expose port
 EXPOSE 3001

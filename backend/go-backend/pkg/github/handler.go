@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"time"
 
+	"go-backend/pkg/database"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cache"
 )
@@ -41,10 +43,87 @@ func (h *Handler) fetchTrendingRepos() ([]Repository, error) {
 		return nil, err
 	}
 
+	// Store repos in database
+	db := database.GetDB()
+	for _, repo := range repos {
+		builtByJSON, err := json.Marshal(repo.BuiltBy)
+		if err != nil {
+			continue
+		}
+
+		_, err = db.Exec(`
+			INSERT OR REPLACE INTO github_repositories 
+			(author, name, avatar, url, description, language, language_color, stars, forks, current_period_stars, built_by)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`,
+			repo.Author,
+			repo.Name,
+			repo.Avatar,
+			repo.URL,
+			repo.Description,
+			repo.Language,
+			repo.LanguageColor,
+			repo.Stars,
+			repo.Forks,
+			repo.CurrentPeriodStars,
+			builtByJSON,
+		)
+		if err != nil {
+			continue
+		}
+	}
+
 	return repos, nil
 }
 
 func (h *Handler) GetTrendingRepos(c *fiber.Ctx) error {
+	// Try to get from database first
+	db := database.GetDB()
+	rows, err := db.Query(`
+		SELECT author, name, avatar, url, description, language, language_color, 
+		       stars, forks, current_period_stars, built_by
+		FROM github_repositories
+		WHERE created_at >= datetime('now', '-5 minutes')
+		ORDER BY stars DESC
+	`)
+	if err == nil {
+		defer rows.Close()
+
+		var repos []Repository
+		for rows.Next() {
+			var repo Repository
+			var builtByJSON []byte
+			err := rows.Scan(
+				&repo.Author,
+				&repo.Name,
+				&repo.Avatar,
+				&repo.URL,
+				&repo.Description,
+				&repo.Language,
+				&repo.LanguageColor,
+				&repo.Stars,
+				&repo.Forks,
+				&repo.CurrentPeriodStars,
+				&builtByJSON,
+			)
+			if err != nil {
+				continue
+			}
+
+			// Parse built_by JSON
+			if err := json.Unmarshal(builtByJSON, &repo.BuiltBy); err != nil {
+				continue
+			}
+
+			repos = append(repos, repo)
+		}
+
+		if len(repos) > 0 {
+			return c.JSON(repos)
+		}
+	}
+
+	// If no recent data in database or error occurred, fetch from API
 	repos, err := h.fetchTrendingRepos()
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{

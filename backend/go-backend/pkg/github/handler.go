@@ -24,7 +24,8 @@ func NewHandler() *Handler {
 	}
 }
 
-func (h *Handler) fetchTrendingRepos() ([]Repository, error) {
+// FetchTrendingRepos fetches trending repositories from GitHub API and stores them in the database
+func (h *Handler) FetchTrendingRepos() ([]Repository, error) {
 	log.Printf("[GitHub] Fetching trending repositories from API")
 	req, err := http.NewRequest("GET", "https://api.gitterapp.com/repositories?since=daily", nil)
 	if err != nil {
@@ -138,7 +139,7 @@ func (h *Handler) GetTrendingRepos(c *fiber.Ctx) error {
 	}
 
 	log.Printf("[GitHub] Cache miss: Fetching repositories from API")
-	repos, err := h.fetchTrendingRepos()
+	repos, err := h.FetchTrendingRepos()
 	if err != nil {
 		log.Printf("[GitHub] Failed to fetch repositories: %v", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{

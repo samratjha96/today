@@ -56,7 +56,7 @@ func Initialize() error {
 		return err
 	}
 
-	// Create HackerNews stories table
+	// Create HackerNews stories table with URL uniqueness constraint
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS hackernews_stories (
 			id INTEGER PRIMARY KEY,
@@ -66,7 +66,7 @@ func Initialize() error {
 			time INTEGER,
 			title TEXT,
 			type TEXT,
-			url TEXT,
+			url TEXT UNIQUE,  -- Added UNIQUE constraint on URL
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		)
 	`)

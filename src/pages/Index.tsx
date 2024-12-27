@@ -17,15 +17,18 @@ const Index = () => {
             <div className="w-3 h-3 rounded-full bg-terminal-accent animate-pulse" />
             <h1 className="font-mono text-xl">
               Today is looking like a{" "}
-              {marketSentiment && (
-                <span
-                  className={cn(
-                    marketSentiment === "bullish" ? "text-green-400" : "text-red-400"
-                  )}
-                >
-                  {marketSentiment === "bullish" ? "W" : "L"}
-                </span>
-              )}
+              <span className="inline-flex items-center">
+                {marketSentiment ? (
+                  <span
+                    className={cn(
+                      marketSentiment === "bullish" ? "text-green-400" : "text-red-400"
+                    )}
+                  >
+                    {marketSentiment === "bullish" ? "W" : "L"}
+                  </span>
+                ) : null}
+                <span className="text-green-400 inline-block w-[2px] h-7 ml-[1px] align-middle animate-subtleBlink">|</span>
+              </span>
             </h1>
           </div>
         </div>

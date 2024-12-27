@@ -68,6 +68,10 @@ export default {
           "0%, 100%": { opacity: "1" },
           "50%": { opacity: "0" },
         },
+        subtleBlink: {
+          "0%, 100%": { opacity: "0.7" },
+          "50%": { opacity: "0.3" },
+        },
         fadeIn: {
           "0%": { opacity: "0" },
           "100%": { opacity: "1" },
@@ -79,6 +83,7 @@ export default {
       },
       animation: {
         blink: "blink 1s step-start infinite",
+        subtleBlink: "subtleBlink 1.5s ease-in-out infinite",
         fadeIn: "fadeIn 0.5s ease-in-out",
         slideIn: "slideIn 0.3s ease-out",
       },

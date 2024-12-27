@@ -2,6 +2,7 @@ package github
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"time"
 
@@ -24,8 +25,10 @@ func NewHandler() *Handler {
 }
 
 func (h *Handler) fetchTrendingRepos() ([]Repository, error) {
+	log.Printf("[GitHub] Fetching trending repositories from API")
 	req, err := http.NewRequest("GET", "https://api.gitterapp.com/repositories?since=daily", nil)
 	if err != nil {
+		log.Printf("[GitHub] Failed to create request: %v", err)
 		return nil, err
 	}
 
@@ -34,20 +37,26 @@ func (h *Handler) fetchTrendingRepos() ([]Repository, error) {
 
 	resp, err := h.client.Do(req)
 	if err != nil {
+		log.Printf("[GitHub] API request failed: %v", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	var repos []Repository
 	if err := json.NewDecoder(resp.Body).Decode(&repos); err != nil {
+		log.Printf("[GitHub] Failed to decode API response: %v", err)
 		return nil, err
 	}
 
+	log.Printf("[GitHub] Successfully fetched %d repositories from API", len(repos))
+
 	// Store repos in database
 	db := database.GetDB()
+	stored := 0
 	for _, repo := range repos {
 		builtByJSON, err := json.Marshal(repo.BuiltBy)
 		if err != nil {
+			log.Printf("[GitHub] Failed to marshal builtBy for repo %s/%s: %v", repo.Author, repo.Name, err)
 			continue
 		}
 
@@ -69,9 +78,12 @@ func (h *Handler) fetchTrendingRepos() ([]Repository, error) {
 			builtByJSON,
 		)
 		if err != nil {
+			log.Printf("[GitHub] Failed to store repo %s/%s in database: %v", repo.Author, repo.Name, err)
 			continue
 		}
+		stored++
 	}
+	log.Printf("[GitHub] Successfully stored %d/%d repositories in database", stored, len(repos))
 
 	return repos, nil
 }
@@ -107,11 +119,12 @@ func (h *Handler) GetTrendingRepos(c *fiber.Ctx) error {
 				&builtByJSON,
 			)
 			if err != nil {
+				log.Printf("[GitHub] Failed to scan repository from database: %v", err)
 				continue
 			}
 
-			// Parse built_by JSON
 			if err := json.Unmarshal(builtByJSON, &repo.BuiltBy); err != nil {
+				log.Printf("[GitHub] Failed to unmarshal builtBy JSON for repo %s/%s: %v", repo.Author, repo.Name, err)
 				continue
 			}
 
@@ -119,13 +132,15 @@ func (h *Handler) GetTrendingRepos(c *fiber.Ctx) error {
 		}
 
 		if len(repos) > 0 {
+			log.Printf("[GitHub] Cache hit: Returned %d repositories from database", len(repos))
 			return c.JSON(repos)
 		}
 	}
 
-	// If no recent data in database or error occurred, fetch from API
+	log.Printf("[GitHub] Cache miss: Fetching repositories from API")
 	repos, err := h.fetchTrendingRepos()
 	if err != nil {
+		log.Printf("[GitHub] Failed to fetch repositories: %v", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
 		})
@@ -134,17 +149,15 @@ func (h *Handler) GetTrendingRepos(c *fiber.Ctx) error {
 	return c.JSON(repos)
 }
 
-// RegisterRoutes registers the GitHub routes with the given fiber app
 func (h *Handler) RegisterRoutes(app *fiber.App) {
-	// Cache middleware configuration
 	cacheConfig := cache.Config{
 		Next: func(c *fiber.Ctx) bool {
-			return c.Query("refresh") == "true" // Skip cache if refresh query param is true
+			return c.Query("refresh") == "true"
 		},
 		Expiration:   5 * time.Minute,
 		CacheControl: true,
 	}
 
-	// Apply cache middleware only to the trending endpoint
 	app.Get("/github/trending", cache.New(cacheConfig), h.GetTrendingRepos)
+	log.Printf("[GitHub] Routes registered with %v cache expiration", cacheConfig.Expiration)
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"time"
 
@@ -18,12 +19,10 @@ const (
 	hackerNewsStoryURL      = "https://hacker-news.firebaseio.com/v0/item/%d.json"
 )
 
-// Handler handles HackerNews related requests
 type Handler struct {
 	client *http.Client
 }
 
-// NewHandler creates a new HackerNews handler
 func NewHandler() *Handler {
 	return &Handler{
 		client: &http.Client{
@@ -32,22 +31,19 @@ func NewHandler() *Handler {
 	}
 }
 
-// RegisterRoutes registers the HackerNews routes with caching
 func (h *Handler) RegisterRoutes(app *fiber.App) {
-	// Cache middleware configuration
 	cacheConfig := cache.Config{
 		Next: func(c *fiber.Ctx) bool {
-			return c.Query("refresh") == "true" // Skip cache if refresh query param is true
+			return c.Query("refresh") == "true"
 		},
 		Expiration:   5 * time.Minute,
 		CacheControl: true,
 	}
 
-	// Apply cache middleware only to the top stories endpoint
 	app.Get("/hackernews/top", cache.New(cacheConfig), h.GetTopStories)
+	log.Printf("[HackerNews] Routes registered with %v cache expiration", cacheConfig.Expiration)
 }
 
-// GetTopStories returns the top HackerNews stories
 func (h *Handler) GetTopStories(c *fiber.Ctx) error {
 	// Try to get stories from database first
 	db := database.GetDB()
@@ -75,20 +71,24 @@ func (h *Handler) GetTopStories(c *fiber.Ctx) error {
 				&story.URL,
 			)
 			if err != nil {
+				log.Printf("[HackerNews] Failed to scan story from database: %v", err)
 				continue
 			}
 			stories = append(stories, story)
 		}
 
 		if len(stories) > 0 {
+			log.Printf("[HackerNews] Cache hit: Returned %d stories from database", len(stories))
 			return c.JSON(stories)
 		}
 	}
 
-	// If no recent data in database or error occurred, fetch from API
+	log.Printf("[HackerNews] Cache miss: Fetching stories from API")
+
 	// Get top story IDs
 	resp, err := h.client.Get(hackerNewsTopStoriesURL)
 	if err != nil {
+		log.Printf("[HackerNews] Failed to fetch top story IDs: %v", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": fmt.Sprintf("Failed to fetch top stories: %v", err),
 		})
@@ -97,6 +97,7 @@ func (h *Handler) GetTopStories(c *fiber.Ctx) error {
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		log.Printf("[HackerNews] Failed to read top stories response: %v", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": fmt.Sprintf("Failed to read response body: %v", err),
 		})
@@ -104,28 +105,35 @@ func (h *Handler) GetTopStories(c *fiber.Ctx) error {
 
 	var storyIDs []int
 	if err := json.Unmarshal(body, &storyIDs); err != nil {
+		log.Printf("[HackerNews] Failed to parse story IDs: %v", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": fmt.Sprintf("Failed to parse story IDs: %v", err),
 		})
 	}
 
+	log.Printf("[HackerNews] Successfully fetched %d story IDs, processing top 10", len(storyIDs))
+
 	// Get details for top 10 stories
 	stories := make([]Story, 0, 10)
+	stored := 0
 	for _, id := range storyIDs[:10] {
 		storyURL := fmt.Sprintf(hackerNewsStoryURL, id)
 		resp, err := h.client.Get(storyURL)
 		if err != nil {
-			continue // Skip this story if there's an error
+			log.Printf("[HackerNews] Failed to fetch story %d: %v", id, err)
+			continue
 		}
 		defer resp.Body.Close()
 
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
+			log.Printf("[HackerNews] Failed to read story %d response: %v", id, err)
 			continue
 		}
 
 		var story Story
 		if err := json.Unmarshal(body, &story); err != nil {
+			log.Printf("[HackerNews] Failed to parse story %d: %v", id, err)
 			continue
 		}
 
@@ -145,17 +153,21 @@ func (h *Handler) GetTopStories(c *fiber.Ctx) error {
 			story.URL,
 		)
 		if err != nil {
+			log.Printf("[HackerNews] Failed to store story %d in database: %v", id, err)
 			continue
 		}
+		stored++
 
 		stories = append(stories, story)
 	}
 
 	if len(stories) == 0 {
+		log.Printf("[HackerNews] Failed to fetch any valid stories")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to fetch any stories",
 		})
 	}
 
+	log.Printf("[HackerNews] Successfully processed %d stories, stored %d in database", len(stories), stored)
 	return c.JSON(stories)
 }

@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	"go-backend/pkg/database"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cache"
 )
@@ -47,6 +49,43 @@ func (h *Handler) RegisterRoutes(app *fiber.App) {
 
 // GetTopStories returns the top HackerNews stories
 func (h *Handler) GetTopStories(c *fiber.Ctx) error {
+	// Try to get stories from database first
+	db := database.GetDB()
+	rows, err := db.Query(`
+		SELECT id, by, descendants, score, time, title, type, url
+		FROM hackernews_stories
+		WHERE created_at >= datetime('now', '-5 minutes')
+		ORDER BY score DESC
+		LIMIT 10
+	`)
+	if err == nil {
+		defer rows.Close()
+
+		var stories []Story
+		for rows.Next() {
+			var story Story
+			err := rows.Scan(
+				&story.ID,
+				&story.By,
+				&story.Descendants,
+				&story.Score,
+				&story.Time,
+				&story.Title,
+				&story.Type,
+				&story.URL,
+			)
+			if err != nil {
+				continue
+			}
+			stories = append(stories, story)
+		}
+
+		if len(stories) > 0 {
+			return c.JSON(stories)
+		}
+	}
+
+	// If no recent data in database or error occurred, fetch from API
 	// Get top story IDs
 	resp, err := h.client.Get(hackerNewsTopStoriesURL)
 	if err != nil {
@@ -87,6 +126,25 @@ func (h *Handler) GetTopStories(c *fiber.Ctx) error {
 
 		var story Story
 		if err := json.Unmarshal(body, &story); err != nil {
+			continue
+		}
+
+		// Store story in database
+		_, err = db.Exec(`
+			INSERT OR REPLACE INTO hackernews_stories 
+			(id, by, descendants, score, time, title, type, url)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		`,
+			story.ID,
+			story.By,
+			story.Descendants,
+			story.Score,
+			story.Time,
+			story.Title,
+			story.Type,
+			story.URL,
+		)
+		if err != nil {
 			continue
 		}
 

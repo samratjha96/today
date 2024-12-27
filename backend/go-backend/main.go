@@ -9,11 +9,18 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 
+	"go-backend/pkg/database"
 	"go-backend/pkg/github"
 	"go-backend/pkg/hackernews"
 )
 
 func main() {
+	// Initialize database
+	if err := database.Initialize(); err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
+	}
+	defer database.Close()
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "3001"
@@ -34,11 +41,11 @@ func main() {
 		return c.SendStatus(fiber.StatusOK)
 	})
 
-	// GitHub routes with caching
+	// GitHub routes with database persistence
 	ghHandler := github.NewHandler()
 	ghHandler.RegisterRoutes(app)
 
-	// HackerNews routes with caching
+	// HackerNews routes with database persistence
 	hnHandler := hackernews.NewHandler()
 	hnHandler.RegisterRoutes(app)
 

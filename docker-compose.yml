@@ -32,6 +32,8 @@ services:
     environment:
       - TZ=UTC
       - ALLOWED_HOSTS=${ALLOWED_HOSTS:-today.techbrohomelab.xyz}
+    volumes:
+      - ./backend/go-backend/data:/app/data  # Mount SQLite database directory
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
       interval: 30s

@@ -1,6 +1,8 @@
 package tickers
 
 import (
+	"log"
+	"sort"
 	"sync"
 
 	"github.com/gofiber/fiber/v2"
@@ -18,9 +20,12 @@ func (h *Handler) RegisterRoutes(app *fiber.App) {
 
 func (h *Handler) GetTickers(c *fiber.Ctx) error {
 	if data, ok := getCachedData(); ok {
+		log.Printf("[Stocks] Returning data from cache")
+		sortTickersByDayChange(data)
 		return c.JSON(data)
 	}
 
+	log.Printf("[Stocks] Cache miss. Fetching data from API....")
 	results := make(chan *TickerData, len(DefaultTickers))
 	errors := make(chan error, len(DefaultTickers))
 
@@ -65,8 +70,30 @@ func (h *Handler) GetTickers(c *fiber.Ctx) error {
 	}
 
 	if len(tickerData) > 0 {
+		sortTickersByDayChange(tickerData)
 		updateCache(tickerData)
 	}
 
 	return c.JSON(tickerData)
+}
+
+func sortTickersByDayChange(data []TickerData) {
+	sort.Slice(data, func(i, j int) bool {
+		if data[i].DayChange == nil {
+			return false
+		}
+		if data[j].DayChange == nil {
+			return true
+		}
+		// Sort by absolute day change percentage descending
+		// This will show biggest movers (both up and down) first
+		return abs(*data[i].DayChange) > abs(*data[j].DayChange)
+	})
+}
+
+func abs(x float64) float64 {
+	if x < 0 {
+		return -x
+	}
+	return x
 }

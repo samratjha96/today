@@ -13,7 +13,7 @@ type cachedData struct {
 var (
 	cache      *cachedData
 	cacheMutex sync.RWMutex
-	cacheTime  = 2 * time.Minute
+	cacheTime  = 5 * time.Minute
 )
 
 func getCachedData() ([]TickerData, bool) {
@@ -38,5 +38,16 @@ func updateCache(data []TickerData) {
 	cache = &cachedData{
 		data:      data,
 		timestamp: time.Now(),
+	}
+}
+
+// ExtendCacheTime can be called to increase cache time when rate limiting is happening
+func ExtendCacheTime(additional time.Duration) {
+	cacheMutex.Lock()
+	defer cacheMutex.Unlock()
+
+	if cache != nil {
+		// Update the timestamp to extend the cache lifetime
+		cache.timestamp = time.Now()
 	}
 }

@@ -26,33 +26,38 @@ func (h *Handler) GetTickers(c *fiber.Ctx) error {
 	}
 
 	log.Printf("[Stocks] Cache miss. Fetching data from API....")
-	results := make(chan *TickerData, len(DefaultTickers))
+
+	tickerDataChan := make(chan *TickerData, len(DefaultTickers))
 	errors := make(chan error, len(DefaultTickers))
 
 	var wg sync.WaitGroup
 	wg.Add(len(DefaultTickers))
 
+	// Process each ticker
 	for _, ticker := range DefaultTickers {
 		go func(t string) {
 			defer wg.Done()
 			data, err := fetchTickerData(t)
 			if err != nil {
+				log.Printf("[Stocks] Error fetching %s: %v", t, err)
 				errors <- err
-				results <- nil
+				tickerDataChan <- nil
 				return
 			}
-			results <- data
+
+			log.Printf("[Stocks] Successfully fetched data for %s", t)
+			tickerDataChan <- data
 		}(ticker)
 	}
 
 	go func() {
 		wg.Wait()
-		close(results)
+		close(tickerDataChan)
 		close(errors)
 	}()
 
 	tickerData := make([]TickerData, 0, len(DefaultTickers))
-	for data := range results {
+	for data := range tickerDataChan {
 		if data != nil {
 			tickerData = append(tickerData, *data)
 		}
@@ -66,10 +71,12 @@ func (h *Handler) GetTickers(c *fiber.Ctx) error {
 	}
 
 	if len(tickerData) == 0 && len(errs) > 0 {
+		log.Printf("[Stocks] Failed to fetch any ticker data: %v", errs[0])
 		return fiber.NewError(fiber.StatusInternalServerError, errs[0].Error())
 	}
 
 	if len(tickerData) > 0 {
+		log.Printf("[Stocks] Successfully fetched data for %d tickers", len(tickerData))
 		sortTickersByDayChange(tickerData)
 		updateCache(tickerData)
 	}

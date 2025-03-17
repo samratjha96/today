@@ -2,6 +2,8 @@ package github
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"time"
@@ -43,9 +45,33 @@ func (h *Handler) FetchTrendingRepos() ([]Repository, error) {
 	}
 	defer resp.Body.Close()
 
+	// Log the response status code
+	log.Printf("[GitHub] API response status: %s", resp.Status)
+
+	// Read the response body into a buffer so we can inspect it
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("[GitHub] Failed to read response body: %v", err)
+		return nil, err
+	}
+
+	// Check if response is not a success status code
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		log.Printf("[GitHub] API returned error status %d: %s", resp.StatusCode, string(bodyBytes))
+		return nil, fmt.Errorf("api returned status %d: %s", resp.StatusCode, resp.Status)
+	}
+
+	// Preview the response (only show first 100 characters if very long)
+	preview := string(bodyBytes)
+	if len(preview) > 100 {
+		preview = preview[:100] + "..."
+	}
+	log.Printf("[GitHub] Response preview: %s", preview)
+
 	var repos []Repository
-	if err := json.NewDecoder(resp.Body).Decode(&repos); err != nil {
+	if err := json.Unmarshal(bodyBytes, &repos); err != nil {
 		log.Printf("[GitHub] Failed to decode API response: %v", err)
+		log.Printf("[GitHub] Raw response: %s", string(bodyBytes))
 		return nil, err
 	}
 

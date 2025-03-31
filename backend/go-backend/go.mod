@@ -5,12 +5,12 @@ go 1.23
 toolchain go1.23.7
 
 require (
+	github.com/PuerkitoBio/goquery v1.10.2
 	github.com/gofiber/fiber/v2 v2.52.5
 	github.com/mattn/go-sqlite3 v1.14.24
 )
 
 require (
-	github.com/PuerkitoBio/goquery v1.10.2 // indirect
 	github.com/andybalholm/brotli v1.0.5 // indirect
 	github.com/andybalholm/cascadia v1.3.3 // indirect
 	github.com/google/uuid v1.5.0 // indirect

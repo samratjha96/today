@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+	"log"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -15,6 +16,7 @@ func Initialize() error {
 	if err != nil {
 		return err
 	}
+	log.Printf("Connected to database: %s", db)
 
 	// Test the connection
 	if err = db.Ping(); err != nil {

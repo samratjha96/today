@@ -16,18 +16,19 @@ The Today Dashboard is built with a modern microservices architecture:
 - Custom hooks for data fetching and state management in `/src/hooks`
 - Utility functions and constants in `/src/lib`
 
-### Backend Services
-Multiple backend services handle different aspects of data fetching and processing:
+### Backend Service
 
-1. Go Backend (`/backend/go-backend`)
-   - Handles GitHub trending repositories
-   - Processes Hacker News data
-   - Built with modern Go practices and modular architecture
+A consolidated Go backend handles all data fetching and processing:
 
-2. Python Backend (`/backend/python-backend`)
-   - Manages market data and stock information
-   - Processes RSS feeds
-   - Uses FastAPI for efficient API endpoints
+* Go Backend (`/backend/go-backend`)
+  - Built with Go Fiber framework
+  - Uses SQLite for data persistence
+  - Implements a job scheduler for periodic data fetching
+  - Key modules:
+    - `github`: Scrapes and serves GitHub trending repositories
+    - `hackernews`: Fetches and processes Hacker News stories
+    - `tickers`: Retrieves financial market data from Yahoo Finance
+    - `rss`: Aggregates tech news from various RSS feeds
 
 ### Reverse Proxy with Caddy
 
@@ -35,21 +36,15 @@ The application uses Caddy v2 as a reverse proxy to handle routing and load bala
 
 #### API Request Handling
 
-The Caddy configuration demonstrates sophisticated request routing:
+The Caddy configuration provides efficient routing:
 
 ```caddy
 handle /api/* {
-    # Strip the /api prefix before forwarding to backends
+    # Strip the /api prefix before forwarding to backend
     uri strip_prefix /api
 
-    # Route to appropriate backend based on path
-    reverse_proxy {
-        # Dynamic backend selection based on request path
-        to today-backend-1:8020 today-backend-2:8020
-
-        # Load balancing configuration
-        lb_policy round_robin
-
+    # Route to Go backend
+    reverse_proxy today-go-backend:3001 {
         # Health checks
         health_uri /health
         health_interval 30s
@@ -59,11 +54,10 @@ handle /api/* {
 ```
 
 Key Features:
-- Path-based routing to different backend services
-- Automatic load balancing across backend instances
-- Health checking for backend services
 - Clean API URL structure by stripping prefixes
+- Health checking for backend service
 - Secure headers and HTTPS handling
+- Efficient routing of all API requests to the Go backend
 
 ## Directory Structure
 
@@ -75,8 +69,9 @@ Key Features:
 │   ├── lib/              # Utilities and constants
 │   └── pages/            # Page components
 ├── backend/
-│   ├── go-backend/       # Go services
-│   └── python-backend/   # Python services
+│   └── go-backend/       # Consolidated Go backend service
+│       ├── pkg/          # Backend modules (github, hackernews, rss, tickers)
+│       └── data/         # SQLite database directory
 └── caddy/                # Caddy reverse proxy configuration
 ```
 

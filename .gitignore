@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Lock files
+bun.lockb
+
 # Environment variables
 .env
 .env.local

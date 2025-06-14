@@ -1,4 +1,6 @@
 services:
+  # Use the --remove-orphans flag when deploying to clean up old containers
+  # e.g. docker-compose up -d --remove-orphans
   go-backend:
     build:
       context: ./backend/go-backend

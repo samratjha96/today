@@ -40,7 +40,7 @@ prod-build:
 prod-up:
 	@echo "Starting production services..."
 	@cd caddy && docker-compose up -d
-	@docker-compose up -d
+	@docker-compose up -d --remove-orphans
 	@echo "Services started. Running at http://localhost with API at http://localhost/api"
 	@echo "Use 'docker-compose logs -f' to view logs."
 

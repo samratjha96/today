@@ -80,35 +80,58 @@ Key Features:
 └── caddy/                # Caddy reverse proxy configuration
 ```
 
-## Development
+## Development & Deployment
 
-1. Install dependencies:
+This project uses a Makefile to simplify development and deployment workflows. Below are the available commands:
+
+### Available Make Commands
+
 ```bash
-npm install
+# View all available commands
+make help
+
+# Set up development environment and start servers
+make dev
+
+# Only install dependencies without starting servers
+make dev-deps
+
+# Build and start all services in production mode
+make prod
+
+# Clean up all build artifacts and containers
+make clean
+
+# Run tests
+make test
 ```
 
-2. Create environment configuration:
+### Development
+
+For development, simply run:
+
 ```bash
-cp .env.example .env
+make dev
 ```
 
-3. Start the development server:
+This will:
+- Install all necessary dependencies (frontend and backend)
+- Start the Go backend on port 3001
+- Start the frontend development server on port 8019
+
+The application will be available at http://localhost:8019 during development.
+
+### Production Deployment
+
+For production deployment, use:
+
 ```bash
-npm run dev
+make prod
 ```
 
-The application will be available at http://localhost:5173 during development.
+This will:
+- Create required Docker networks
+- Build all containers
+- Start the entire stack including Caddy reverse proxy
 
-## Production Deployment
-
-1. Build the frontend:
-```bash
-npm run build
-```
-
-2. Start all services:
-```bash
-docker-compose up -d
-```
-
-The application uses Docker Compose for orchestrating all services in production, with Caddy handling routing and HTTPS.
+The application will be available at http://localhost in production mode with Caddy handling routing and HTTPS.

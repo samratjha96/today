@@ -1,11 +1,12 @@
 # Today Dashboard Makefile
 
-.PHONY: help dev prod prod-build prod-up clean test network
+.PHONY: help dev dev-deps prod prod-build prod-up clean test network
 
 # Default target
 help:
 	@echo "Today Dashboard - Available commands:"
 	@echo "  make dev      - Run all components in development mode"
+	@echo "  make dev-deps - Install development dependencies only"
 	@echo "  make prod     - Run all components in production mode"
 	@echo "  make network  - Create Docker shared network"
 	@echo "  make clean    - Clean all build artifacts and containers"
@@ -16,8 +17,14 @@ network:
 	@echo "Creating shared Docker network..."
 	@docker network create shared-web || echo "Network already exists"
 
+# Development prerequisites
+dev-deps:
+	@echo "Installing dependencies..."
+	@npm install
+	@cd backend/go-backend && go mod tidy
+
 # Development
-dev:
+dev: dev-deps
 	@echo "Starting development environment..."
 	@echo "Starting backend on port 3001 and frontend on port 8019"
 	@cd backend/go-backend && go run main.go & npm run dev

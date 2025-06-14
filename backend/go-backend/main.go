@@ -14,6 +14,7 @@ import (
 	"go-backend/pkg/database"
 	"go-backend/pkg/github"
 	"go-backend/pkg/hackernews"
+	"go-backend/pkg/rss"
 	"go-backend/pkg/tickers"
 )
 
@@ -72,7 +73,7 @@ func (s *JobScheduler) runJob(job *Job) {
 	}
 }
 
-func scheduledJobs(ghHandler *github.Handler, hnHandler *hackernews.Handler) {
+func scheduledJobs(ghHandler *github.Handler, hnHandler *hackernews.Handler, rssHandler *rss.Handler) {
 	scheduler := NewJobScheduler()
 
 	scheduler.AddJob("GitHub Trending", time.Hour, func() error {
@@ -84,6 +85,9 @@ func scheduledJobs(ghHandler *github.Handler, hnHandler *hackernews.Handler) {
 		_, err := hnHandler.FetchTopStories()
 		return err
 	})
+
+	// Add RSS feed job
+	rssHandler.AddToJobScheduler(scheduler.AddJob)
 
 	scheduler.Start()
 }
@@ -103,8 +107,15 @@ func main() {
 
 	app.Use(logger.New())
 	app.Use(recover.New())
+
+	// Get allowed origins from environment variable or use default
+	allowedHosts := os.Getenv("ALLOWED_HOSTS")
+	if allowedHosts == "" {
+		allowedHosts = "*"
+	}
+
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: "*",
+		AllowOrigins: allowedHosts,
 		AllowHeaders: "Origin, Content-Type, Accept",
 	}))
 
@@ -121,7 +132,11 @@ func main() {
 	tickerHandler := tickers.NewHandler()
 	tickerHandler.RegisterRoutes(app)
 
-	go scheduledJobs(ghHandler, hnHandler)
+	// Initialize RSS handler and register routes
+	rssHandler := rss.NewHandler()
+	rssHandler.RegisterRoutes(app)
+
+	go scheduledJobs(ghHandler, hnHandler, rssHandler)
 
 	log.Printf("Server starting on port %s\n", port)
 	log.Fatal(app.Listen(":" + port))

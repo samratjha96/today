@@ -41,15 +41,15 @@ The Caddy configuration demonstrates sophisticated request routing:
 handle /api/* {
     # Strip the /api prefix before forwarding to backends
     uri strip_prefix /api
-    
+
     # Route to appropriate backend based on path
     reverse_proxy {
         # Dynamic backend selection based on request path
         to today-backend-1:8020 today-backend-2:8020
-        
+
         # Load balancing configuration
         lb_policy round_robin
-        
+
         # Health checks
         health_uri /health
         health_interval 30s

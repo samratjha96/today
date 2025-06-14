@@ -27,15 +27,7 @@
 			-X-Powered-By
 		}
 
-		# API requests - Python backend (strip prefix)
-		@api-python {
-			path /api/python/*
-		}
-		handle @api-python {
-			uri strip_prefix /api/python
-			reverse_proxy today-python-backend:8020
-		}
-
+		# All API requests go to Go backend
 		@api {
 			path /api/*
 		}

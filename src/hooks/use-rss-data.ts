@@ -8,7 +8,7 @@ export interface RSSItem {
 }
 
 const fetchRSSData = async (): Promise<RSSItem[]> => {
-  const url = `${BACKEND_URL}/python/news`;
+  const url = `${BACKEND_URL}/news`;
 
   try {
     const response = await fetch(url);

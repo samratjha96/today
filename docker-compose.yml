@@ -1,27 +1,6 @@
 version: '3.8'
 
 services:
-  python-backend:
-    build:
-      context: ./backend/python-backend
-      dockerfile: Dockerfile
-    container_name: today-python-backend
-    expose:
-      - "8020"  # Only expose to internal network
-    environment:
-      - TZ=UTC
-      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-today.techbrohomelab.xyz}  # Add your domain here
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8020/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    networks:
-      - default
-      - shared-web
-    restart: unless-stopped
-
   go-backend:
     build:
       context: ./backend/go-backend
@@ -56,8 +35,6 @@ services:
       - VITE_BACKEND_URL=/api
       - VITE_API_MODE=${VITE_API_MODE:-real}
     depends_on:
-      python-backend:
-        condition: service_healthy
       go-backend:
         condition: service_healthy
     networks:

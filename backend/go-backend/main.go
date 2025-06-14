@@ -114,10 +114,20 @@ func main() {
 		allowedHosts = "*"
 	}
 
-	app.Use(cors.New(cors.Config{
-		AllowOrigins: allowedHosts,
+	// Configure CORS with proper prefixes if needed
+	corsConfig := cors.Config{
 		AllowHeaders: "Origin, Content-Type, Accept",
-	}))
+	}
+
+	// If allowedHosts is "*", use that directly
+	if allowedHosts == "*" {
+		corsConfig.AllowOrigins = "*"
+	} else {
+		// For specific domains, ensure they are proper URLs
+		corsConfig.AllowOrigins = "https://" + allowedHosts + ",http://" + allowedHosts
+	}
+
+	app.Use(cors.New(corsConfig))
 
 	app.Get("/health", func(c *fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusOK)

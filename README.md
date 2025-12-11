@@ -75,58 +75,249 @@ Key Features:
 └── caddy/                # Caddy reverse proxy configuration
 ```
 
+## Getting Started
+
+### Prerequisites
+
+Before running the application, ensure you have the following installed:
+
+**Required for Production:**
+- [Docker](https://docs.docker.com/get-docker/) (20.10+)
+- [Docker Compose](https://docs.docker.com/compose/install/) (v2+)
+
+**Required for Development:**
+- All of the above, plus:
+- [Node.js](https://nodejs.org/) (20+)
+- [Go](https://go.dev/doc/install) (1.23+)
+- npm (comes with Node.js)
+
+### Quick Start (Fresh Install)
+
+```bash
+# Check if all prerequisites are installed
+make check-prereqs
+
+# Complete fresh installation setup
+make install
+
+# For development mode
+make dev
+
+# OR for production mode
+make prod
+```
+
+That's it! The Makefile handles everything automatically.
+
+---
+
 ## Development & Deployment
 
-This project uses a Makefile to simplify development and deployment workflows. Below are the available commands:
+This project uses a comprehensive Makefile to simplify all workflows. The Makefile is designed to work on completely fresh installations.
 
-### Available Make Commands
+### 🔍 Check Prerequisites
+
+Before starting, verify all required tools are installed:
 
 ```bash
-# View all available commands
+make check-prereqs
+```
+
+This checks for Docker, Docker Compose, Node.js, npm, and Go.
+
+### 🚀 Fresh Installation
+
+For a complete fresh setup (first time):
+
+```bash
+make install
+```
+
+This command:
+1. ✅ Checks all prerequisites
+2. ✅ Creates environment files from `.env.example`
+3. ✅ Creates Docker network (`shared-web`)
+4. ✅ Prepares the system for deployment
+
+### 💻 Development Mode
+
+Run the application locally for development:
+
+```bash
+make dev
+```
+
+This will:
+- Install all npm and Go dependencies
+- Start Go backend on `http://localhost:3001`
+- Start React frontend on `http://localhost:5173`
+- Enable hot-reload for both services
+
+**Individual Services:**
+```bash
+make dev-frontend  # Frontend only (port 5173)
+make dev-backend   # Backend only (port 3001)
+```
+
+### 🐳 Production Deployment
+
+Deploy using Docker containers:
+
+```bash
+# Complete production deployment from scratch
+make prod
+
+# OR step-by-step:
+make install      # Initial setup
+make build        # Build Docker images
+make up           # Start services
+```
+
+**Production URLs:**
+- Frontend: `http://localhost`
+- API: `http://localhost/api`
+
+**Service Management:**
+```bash
+make up          # Start all services
+make down        # Stop all services
+make restart     # Restart all services
+make status      # Check service status
+make health      # Check health of services
+```
+
+### 📊 Monitoring & Logs
+
+View logs from running services:
+
+```bash
+make logs              # All services
+make logs-frontend     # Frontend only
+make logs-backend      # Backend only
+make logs-caddy        # Caddy only
+```
+
+### 🧪 Testing
+
+Run tests across the application:
+
+```bash
+make test              # All tests
+make test-backend      # Backend tests only
+```
+
+### 🔨 Rebuilding
+
+Rebuild specific services without full cleanup:
+
+```bash
+make rebuild           # Rebuild everything
+make rebuild-frontend  # Frontend only
+make rebuild-backend   # Backend only
+make rebuild-caddy     # Caddy only
+```
+
+### 🗄️ Database Management
+
+Backup and restore the SQLite database:
+
+```bash
+# Backup database
+make db-backup
+
+# Restore from backup
+make db-restore BACKUP_FILE=backups/today-20231201-120000.db
+```
+
+### 🧹 Cleanup
+
+Remove build artifacts and containers:
+
+```bash
+make clean         # Remove containers and build artifacts
+make clean-all     # Complete cleanup including volumes and images
+```
+
+### 🔧 Advanced Commands
+
+```bash
+make shell-frontend    # Open shell in frontend container
+make shell-backend     # Open shell in backend container
+make shell-caddy       # Open shell in Caddy container
+make validate-caddy    # Validate Caddyfile configuration
+make update-deps       # Update all dependencies
+```
+
+### 📋 All Available Commands
+
+View the complete list of commands:
+
+```bash
 make help
-
-# Set up development environment and start servers
-make dev
-
-# Only install dependencies without starting servers
-make dev-deps
-
-# Build and start all services in production mode
-make prod
-
-# Clean up all build artifacts and containers
-make clean
-
-# Run tests
-make test
 ```
 
-### Development
+---
 
-For development, simply run:
+## Architecture Deep Dive
 
-```bash
-make dev
+### Request Flow
+
+```
+Client Request
+     ↓
+[Caddy Reverse Proxy] :80/:443
+     ↓
+     ├─→ /api/* → [Go Backend] :3001 (internal)
+     │               ↓
+     │          [SQLite Database]
+     │
+     └─→ /* → [React Frontend] :80 (internal)
 ```
 
-This will:
-- Install all necessary dependencies (frontend and backend)
-- Start the Go backend on port 3001
-- Start the frontend development server on port 8019
+### How Caddy Routes Requests
 
-The application will be available at http://localhost:8019 during development.
+The Caddy configuration (`caddy/Caddyfile`) implements intelligent routing:
 
-### Production Deployment
+1. **API Requests** (`/api/*`):
+   - Strips the `/api` prefix
+   - Forwards to `today-go-backend:3001`
+   - Example: `http://localhost/api/tickers` → `http://today-go-backend:3001/tickers`
 
-For production deployment, use:
+2. **Frontend Requests** (everything else):
+   - Forwards to `today-frontend:80`
+   - Serves the React SPA
+   - Handles client-side routing
 
-```bash
-make prod
+3. **Security Headers**:
+   - X-Content-Type-Options
+   - X-XSS-Protection
+   - X-Frame-Options
+   - Referrer-Policy
+
+### Docker Network Architecture
+
+All services communicate through a shared Docker network:
+
+```
+shared-web (Docker network)
+├── shared-caddy (caddy:2-alpine)
+├── today-frontend (node:20-alpine)
+└── today-go-backend (golang:1.23-alpine → alpine:latest)
 ```
 
-This will:
-- Create required Docker networks
-- Build all containers
-- Start the entire stack including Caddy reverse proxy
+**Key Points:**
+- Services communicate via container names
+- Internal ports are not exposed to host
+- Only Caddy exposes ports 80/443
+- SQLite database persists in Docker volume
 
-The application will be available at http://localhost in production mode with Caddy handling routing and HTTPS.
+### Data Flow & Job Scheduler
+
+The Go backend runs periodic jobs to fetch data:
+
+- **GitHub Trending**: Every 1 hour
+- **Hacker News**: Every 15 minutes
+- **RSS Feeds**: Configurable intervals
+- **Ticker Data**: On-demand (cached)
+
+Data is stored in SQLite and served through REST APIs.

@@ -26,5 +26,5 @@ volumes:
 
 networks:
   shared-web:
+    external: true
     name: shared-web
-    driver: bridge

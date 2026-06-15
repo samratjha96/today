@@ -10,7 +10,7 @@ services:
       - "3001"
     environment:
       - TZ=UTC
-      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-today.techbrohomelab.xyz}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-today.bootloop.cc}
     volumes:
       - /home/data-backup/today/data:/app/data  # Mount SQLite database directory
     healthcheck:

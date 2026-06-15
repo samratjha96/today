@@ -13,7 +13,7 @@
 :80 {
 	# Match requests for today service and localhost
 	@host {
-		host localhost localhost:80 today.techbrohomelab.xyz
+		host localhost localhost:80 today.bootloop.cc
 	}
 
 	handle @host {
@@ -44,7 +44,7 @@
 
 	# Handle all other subdomains
 	@other_subdomains {
-		host *.techbrohomelab.xyz
+		host *.bootloop.cc
 	}
 
 	handle @other_subdomains {

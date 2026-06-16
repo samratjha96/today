@@ -42,6 +42,14 @@
 		}
 	}
 
+	@argos {
+		host argos.bootloop.cc
+	}
+
+	handle @argos {
+		reverse_proxy 172.20.0.1:8080
+	}
+
 	# Handle all other subdomains
 	@other_subdomains {
 		host *.bootloop.cc
